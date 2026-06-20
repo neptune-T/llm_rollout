@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(pwd)"
-LOG_DIR="${ROOT}/logs/deploy"
+LOG_DIR="${ROOT}/lmm_rollout_project/logs/deploy"
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/nvidia_render_bootstrap_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -10,7 +10,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 echo "[nvidia-render-bootstrap] root: $ROOT"
 echo "[nvidia-render-bootstrap] log: $LOG_FILE"
 
-bash scripts/deploy/remote_preflight_nvidia_render.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_nvidia_render.sh
 
 INSTALL_SYSTEM_DEPS="${INSTALL_SYSTEM_DEPS:-0}"
 RUN_B1K_SETUP="${RUN_B1K_SETUP:-0}"

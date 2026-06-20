@@ -16,12 +16,12 @@ if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_ENV"; then
   exit 2
 fi
 
-conda run -n "$CONDA_ENV" python - <<'PY'
+conda run -n "$CONDA_ENV" python -c '
 import importlib.util
 import torch
 
 print("python_env_ok=True")
 print("torch", torch.__version__, "cuda", torch.version.cuda, "available", torch.cuda.is_available())
-for name in ["sana", "diffusers", "transformers", "xformers"]:
+for name in ["sana", "diffusers", "transformers", "xformers", "flash_attn"]:
     print(name, "found" if importlib.util.find_spec(name) else "missing")
-PY
+'

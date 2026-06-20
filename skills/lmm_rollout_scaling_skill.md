@@ -36,12 +36,12 @@ This project studies online RL with rollout scaling for long-horizon mobile mani
 
 At the beginning of each work session:
 
-1. Read `memory/project_memory.md`.
-2. Read the latest three files under `logs/daily/`.
+1. Read `lmm_rollout_project/memory/project_memory.md`.
+2. Read the latest three files under `lmm_rollout_project/logs/daily/`.
 3. Check git status for relevant subrepos: `Planning`, `basecode/behavior-1k-solution`, and `rltask/Sana`.
 4. Check each relevant repo's latest commit.
 5. Identify the current stage: Stage 0 docs, Stage 1 env/baseline, Stage 2 ranking, Stage 3 horizon/contact, Stage 4 method, or Stage 5 online RL.
-6. Check `docs/current_plan.md` before using older notes.
+6. Check `lmm_rollout_project/docs/current_plan.md` before using older notes.
 7. State the plan before editing files or running experiments.
 
 Treat `Planning/Doc/Todo.md` as historical exploration context. Do not follow its OpenVLA or J-EPA/V-JEPA route unless the user explicitly changes the project direction.
@@ -53,8 +53,8 @@ Current immediate route: OVMM first for the smallest environment loop, then BEHA
 Use the deployment scaffold when moving the workspace to remote machines:
 
 ```bash
-cp configs/deploy/lmm_deploy.example.env configs/deploy/lmm_deploy.env
-bash scripts/deploy/deploy_all.sh configs/deploy/lmm_deploy.env
+cp lmm_rollout_project/configs/deploy/lmm_deploy.example.env lmm_rollout_project/configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/deploy_all.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 Default deployment syncs code/docs/configs/scripts and excludes checkpoints, datasets, outputs, videos, and virtualenvs. Set `SYNC_CHECKPOINTS=1` only when transferring the 48GB BEHAVIOR checkpoints is intended.
@@ -69,14 +69,14 @@ Do not assume the AMD host can run the champion policy or Sana CUDA setup unchan
 For AMD tunnel deployment:
 
 ```bash
-bash scripts/deploy/package_for_tunnel.sh configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/package_for_tunnel.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 Upload the tarball in VS Code Tunnel and run:
 
 ```bash
 cd /scratch/$USER/longhorizon
-bash scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
 ```
 
 AMD full-node Slurm allocation:
@@ -87,8 +87,8 @@ salloc --reservation=gpu-4_gpu-16_gpu-18_gpu-21_gpu-22_gpu-23_gpu-28_gpu-29_rese
 
 At the end of each work session:
 
-1. Update `logs/daily/YYYY-MM-DD.md`.
-2. Update `memory/project_memory.md`.
+1. Update `lmm_rollout_project/logs/daily/YYYY-MM-DD.md`.
+2. Update `lmm_rollout_project/memory/project_memory.md`.
 3. Update this skill file when commands, workflow, or failure diagnostics change.
 4. If experiments ran, record full metadata.
 5. If code changed, state purpose, files, risk, verification, and proposed commit message.
@@ -98,7 +98,7 @@ At the end of each work session:
 Local OVMM smoke command:
 
 ```bash
-bash scripts/env_check/ovmm_local_smoke.sh
+bash lmm_rollout_project/scripts/env_check/ovmm_local_smoke.sh
 ```
 
 Known local status:
@@ -111,7 +111,7 @@ Known local status:
 Sol-RL local preflight:
 
 ```bash
-bash scripts/env_check/solrl_local_preflight.sh
+bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 ```
 
 Expected current local status: missing `sana` env. Do not run Sana `environment_setup.sh` locally without explicit confirmation because it installs a heavy CUDA 12.8 training stack.
@@ -134,9 +134,9 @@ Minimum environment check must verify:
 Record output under:
 
 ```text
-experiments/env_check/
-logs/daily/YYYY-MM-DD.md
-docs/env_setup.md
+lmm_rollout_project/experiments/env_check/
+lmm_rollout_project/logs/daily/YYYY-MM-DD.md
+lmm_rollout_project/docs/env_setup.md
 ```
 
 ## How to run baseline rollout
@@ -150,9 +150,9 @@ Baseline rollout should be the smallest complete episode possible:
 Output should go under:
 
 ```text
-experiments/baseline_rollout/
-docs/baseline_rollout.md
-logs/daily/YYYY-MM-DD.md
+lmm_rollout_project/experiments/baseline_rollout/
+lmm_rollout_project/docs/baseline_rollout.md
+lmm_rollout_project/logs/daily/YYYY-MM-DD.md
 ```
 
 ## How to run cheap rollout
@@ -195,7 +195,7 @@ For matching tasks, seeds, initial states, and candidate branches:
 - Compute false negative rate: cheap ranks bad, high precision succeeds.
 - Break down metrics by stage and horizon.
 
-Store tables under `results/tables/` and plots under `results/figures/`.
+Store tables under `lmm_rollout_project/results/tables/` and plots under `lmm_rollout_project/results/figures/`.
 
 ## How to record experiments
 

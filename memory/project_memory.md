@@ -21,7 +21,8 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - Sol-RL reference code path: `/home/plote/longhorizon/rltask/Sana`.
 - OVMM/HomeRobot code path: `/home/plote/longhorizon/benchmark/home-robot`.
 - Prior exploration notes path: `/home/plote/longhorizon/Planning/Doc/Todo.md`. This is historical context from another exploration, not the active project plan.
-- Active project plan path: `/home/plote/longhorizon/docs/current_plan.md`.
+- Active project control folder: `/home/plote/longhorizon/lmm_rollout_project`.
+- Active project plan path: `/home/plote/longhorizon/lmm_rollout_project/docs/current_plan.md`.
 - Current immediate Stage 1 route is OVMM-first for the simplest mobile-manipulation environment loop.
 - BEHAVIOR champion solution remains the later/main long-horizon benchmark and policy baseline.
 - The active project does not inherit the prior OpenVLA baseline route.
@@ -84,9 +85,9 @@ Do not run large experiments locally without explicit approval.
 Deployment scaffold:
 
 ```bash
-cp configs/deploy/lmm_deploy.example.env configs/deploy/lmm_deploy.env
-bash scripts/deploy/deploy_all.sh configs/deploy/lmm_deploy.env
-bash scripts/deploy/package_for_tunnel.sh configs/deploy/lmm_deploy.env
+cp lmm_rollout_project/configs/deploy/lmm_deploy.example.env lmm_rollout_project/configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/deploy_all.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/package_for_tunnel.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 BEHAVIOR champion policy server, to run on a sufficiently large host:
@@ -123,13 +124,13 @@ bash train_scripts/sol_rl/run_flux1_single_node_8gpu.sh
 OVMM local smoke:
 
 ```bash
-bash scripts/env_check/ovmm_local_smoke.sh
+bash lmm_rollout_project/scripts/env_check/ovmm_local_smoke.sh
 ```
 
 Sol-RL local preflight:
 
 ```bash
-bash scripts/env_check/solrl_local_preflight.sh
+bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 ```
 
 ## Dataset / Benchmark Notes
@@ -190,5 +191,5 @@ Required evidence:
 1. Fix local OVMM Habitat-Sim EGL/OpenGL or run OVMM smoke on a NVIDIA RTX server.
 2. Confirm HuggingFace license/login and download HSSD scenes plus OVMM object assets if local or remote storage is sufficient.
 3. Build the standard rollout record schema on OVMM first.
-4. Fill `configs/deploy/lmm_deploy.env` with the NVIDIA SSH host, AMD tunnel mode, and both remote root paths.
+4. Fill `lmm_rollout_project/configs/deploy/lmm_deploy.env` with the NVIDIA SSH host, AMD tunnel mode, and both remote root paths.
 5. Run BEHAVIOR environment check later on the NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.

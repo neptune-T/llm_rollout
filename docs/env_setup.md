@@ -54,7 +54,7 @@ Data status:
 Smoke command:
 
 ```bash
-bash scripts/env_check/ovmm_local_smoke.sh
+bash lmm_rollout_project/scripts/env_check/ovmm_local_smoke.sh
 ```
 
 Equivalent command:
@@ -122,7 +122,7 @@ Local recommendation:
 Preflight command:
 
 ```bash
-bash scripts/env_check/solrl_local_preflight.sh
+bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 ```
 
 Expected current result:

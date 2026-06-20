@@ -42,7 +42,7 @@ If the NVIDIA render server is too small for champion checkpoint loading, use a 
 Create a local deploy config:
 
 ```bash
-cp configs/deploy/lmm_deploy.example.env configs/deploy/lmm_deploy.env
+cp lmm_rollout_project/configs/deploy/lmm_deploy.example.env lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 Edit:
@@ -58,7 +58,7 @@ AMD_TRAIN_ROOT="/remote/path/longhorizon"
 Run a safe dry deploy:
 
 ```bash
-bash scripts/deploy/deploy_all.sh configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/deploy_all.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 This performs local preflight, rsync code sync to the NVIDIA host, creates an AMD tunnel upload package, and runs NVIDIA remote preflight. If `AMD_TRAIN_CONNECT_MODE=tunnel`, AMD SSH sync/preflight is skipped and the script prints the command to run inside the AMD VS Code Tunnel terminal. It does not run heavy setup unless `DEPLOY_BOOTSTRAP=1`.
@@ -68,7 +68,7 @@ This performs local preflight, rsync code sync to the NVIDIA host, creates an AM
 For AMD, create a package locally:
 
 ```bash
-bash scripts/deploy/package_for_tunnel.sh configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/package_for_tunnel.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 Upload the generated tarball through VS Code Tunnel, then run on AMD:
@@ -77,14 +77,14 @@ Upload the generated tarball through VS Code Tunnel, then run on AMD:
 mkdir -p "$AMD_TRAIN_ROOT"
 tar -xzf /path/to/longhorizon_tunnel_YYYYMMDD_HHMMSS.tar.gz -C "$AMD_TRAIN_ROOT"
 cd "$AMD_TRAIN_ROOT"
-bash scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
 ```
 
-See `docs/amd_tunnel_slurm.md` for the MI325X Slurm workflow.
+See `lmm_rollout_project/docs/amd_tunnel_slurm.md` for the MI325X Slurm workflow.
 
 ## First Full Bootstrap
 
-After the safe preflight looks correct, enable bootstrap explicitly in `configs/deploy/lmm_deploy.env`:
+After the safe preflight looks correct, enable bootstrap explicitly in `lmm_rollout_project/configs/deploy/lmm_deploy.env`:
 
 ```bash
 DEPLOY_BOOTSTRAP=1
@@ -101,7 +101,7 @@ CHECK_DOCKER_FOR_ISAAC=1
 Then run:
 
 ```bash
-bash scripts/deploy/deploy_all.sh configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/deploy_all.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 ## Heavy Artifacts
@@ -129,7 +129,7 @@ On NVIDIA render server:
 
 ```bash
 cd "$NVIDIA_RENDER_ROOT"
-bash scripts/deploy/remote_preflight_nvidia_render.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_nvidia_render.sh
 ```
 
 Then, after BEHAVIOR/Isaac is installed, run a minimal headless render/reset/step test. That test still needs to be written after confirming the exact BEHAVIOR install path.
@@ -138,7 +138,7 @@ On AMD training server:
 
 ```bash
 cd "$AMD_TRAIN_ROOT"
-bash scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
 ```
 
 Do not run Sana CUDA setup on AMD unless the ROCm plan is explicit.
@@ -148,21 +148,21 @@ Do not run Sana CUDA setup on AMD unless the ROCm plan is explicit.
 - If `nvidia-smi` fails on the render server, stop and fix driver/container runtime first.
 - If the render GPU is A100/H100/A800 without RT cores, do not assume Isaac Sim rendering is valid.
 - If AMD PyTorch/ROCm is not visible, do not start training.
-- If champion checkpoint loading fails on a remote machine, record RAM, VRAM, JAX devices, and exact exit code in `logs/daily/YYYY-MM-DD.md`.
+- If champion checkpoint loading fails on a remote machine, record RAM, VRAM, JAX devices, and exact exit code in `lmm_rollout_project/logs/daily/YYYY-MM-DD.md`.
 
 ## Commands Added
 
 ```bash
-bash scripts/deploy/preflight_local.sh configs/deploy/lmm_deploy.env
-bash scripts/deploy/sync_code.sh configs/deploy/lmm_deploy.env
-bash scripts/deploy/deploy_all.sh configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/preflight_local.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/sync_code.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/deploy_all.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 Remote scripts synced with the repo:
 
 ```bash
-bash scripts/deploy/remote_preflight_nvidia_render.sh
-bash scripts/deploy/remote_bootstrap_nvidia_render.sh
-bash scripts/deploy/remote_preflight_amd_train.sh
-bash scripts/deploy/remote_bootstrap_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_nvidia_render.sh
+bash lmm_rollout_project/scripts/deploy/remote_bootstrap_nvidia_render.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_bootstrap_amd_train.sh
 ```

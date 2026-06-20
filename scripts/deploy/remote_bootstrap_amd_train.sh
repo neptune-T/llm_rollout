@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(pwd)"
-LOG_DIR="${ROOT}/logs/deploy"
+LOG_DIR="${ROOT}/lmm_rollout_project/logs/deploy"
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/amd_train_bootstrap_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -10,7 +10,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 echo "[amd-train-bootstrap] root: $ROOT"
 echo "[amd-train-bootstrap] log: $LOG_FILE"
 
-bash scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
 
 RUN_ROCM_TORCH_INSTALL="${RUN_ROCM_TORCH_INSTALL:-0}"
 ROCM_TORCH_INDEX="${ROCM_TORCH_INDEX:-https://download.pytorch.org/whl/rocm6.4}"

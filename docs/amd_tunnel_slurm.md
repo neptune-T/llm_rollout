@@ -41,16 +41,16 @@ Convenience script after this repo is on AMD:
 
 ```bash
 cd /path/to/longhorizon
-bash scripts/deploy/remote_amd_slurm_fullnode.sh
+bash lmm_rollout_project/scripts/deploy/remote_amd_slurm_fullnode.sh
 ```
 
 Batch preflight after repo is on AMD:
 
 ```bash
 cd /path/to/longhorizon
-mkdir -p logs/deploy
+mkdir -p lmm_rollout_project/logs/deploy
 sbatch --reservation=gpu-4_gpu-16_gpu-18_gpu-21_gpu-22_gpu-23_gpu-28_gpu-29_reservation \
-  scripts/deploy/remote_amd_slurm_preflight.sbatch
+  lmm_rollout_project/scripts/deploy/remote_amd_slurm_preflight.sbatch
 ```
 
 ## Code Transfer Without SSH
@@ -60,7 +60,7 @@ Because AMD is tunnel-only, local `rsync` cannot push directly to it.
 Create a local package:
 
 ```bash
-bash scripts/deploy/package_for_tunnel.sh configs/deploy/lmm_deploy.env
+bash lmm_rollout_project/scripts/deploy/package_for_tunnel.sh lmm_rollout_project/configs/deploy/lmm_deploy.env
 ```
 
 Then in VS Code Tunnel:
@@ -73,7 +73,7 @@ Then in VS Code Tunnel:
 mkdir -p /scratch/$USER/longhorizon
 tar -xzf /path/to/longhorizon_tunnel_YYYYMMDD_HHMMSS.tar.gz -C /scratch/$USER/longhorizon
 cd /scratch/$USER/longhorizon
-bash scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
 ```
 
 ## Environment Policy
@@ -83,7 +83,7 @@ Do not run `rltask/Sana/environment_setup.sh` on AMD as-is. It installs CUDA 12.
 First run:
 
 ```bash
-bash scripts/deploy/remote_preflight_amd_train.sh
+bash lmm_rollout_project/scripts/deploy/remote_preflight_amd_train.sh
 ```
 
 Then decide the ROCm environment path based on actual `rocm-smi`, `rocminfo`, and PyTorch HIP availability.
@@ -91,7 +91,7 @@ Then decide the ROCm environment path based on actual `rocm-smi`, `rocminfo`, an
 Optional ROCm torch bootstrap, only after confirmation:
 
 ```bash
-RUN_ROCM_TORCH_INSTALL=1 bash scripts/deploy/remote_bootstrap_amd_train.sh
+RUN_ROCM_TORCH_INSTALL=1 bash lmm_rollout_project/scripts/deploy/remote_bootstrap_amd_train.sh
 ```
 
 ## First Validation Checklist
