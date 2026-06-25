@@ -1,6 +1,6 @@
 # Skill: LMM Rollout Scaling
 
-Last updated: 2026-06-20
+Last updated: 2026-06-26
 
 ## What this project is about
 
@@ -48,6 +48,13 @@ Treat `Planning/Doc/Todo.md` as historical exploration context. Do not follow it
 
 Current immediate route: OVMM first for the smallest environment loop, then BEHAVIOR champion for the stronger long-horizon platform.
 
+Local resource policy:
+
+- Do not run long `git lfs pull`, `flash-attn` compilation, Habitat/OVMM rendering smoke tests, BEHAVIOR checkpoint loading, or package installs that compile CUDA extensions on the local laptop unless the user explicitly approves.
+- Even with explicit approval, stop local CUDA extension builds if swap fills or available memory drops sharply. A 2026-06-23 single-thread `flash-attn` install attempt filled swap and was interrupted.
+- Prefer remote NVIDIA RTX server for simulation/rendering and remote larger machines for heavy dependency builds.
+- Local work should stay limited to code edits, documentation, small file reads, light imports, and short metadata checks.
+
 ## Deployment workflow
 
 Use the deployment scaffold when moving the workspace to remote machines:
@@ -65,6 +72,31 @@ Remote roles:
 - AMD train host: ROCm-compatible training/calibration/analysis after preflight. Access is tunnel-only unless SSH is explicitly enabled.
 
 Do not assume the AMD host can run the champion policy or Sana CUDA setup unchanged.
+
+Current A6000 NVIDIA render server:
+
+```bash
+ssh -p 20400 root@219.223.207.18
+cd /root/workspace/tianshanzhang
+```
+
+Confirmed state on 2026-06-25:
+
+- 4x NVIDIA RTX A6000, driver 570.86.10.
+- Code/resources synced to `/root/workspace/tianshanzhang`.
+- `git-lfs` installed.
+- `/root/anaconda3` exists and `conda init bash` was run.
+- NVIDIA render preflight passed.
+- Docker is not installed.
+- Micromamba exists at `/root/.local/bin/micromamba`, version 2.5.0.
+- `home-robot` env was created at `/root/micromamba/envs/home-robot` from `benchmark/home-robot/src/home_robot/environment.yml`.
+- `sana` env is not created yet.
+- OVMM data and BEHAVIOR checkpoints were intentionally not synced.
+
+After rsyncing to root-owned remote workspaces:
+
+- If Git reports `dubious ownership`, fix ownership or safe.directory before using VS Code Git integration.
+- If HomeRobot shows many LFS assets as modified, install `git-lfs` and recheck before assuming real code changes.
 
 For AMD tunnel deployment:
 
@@ -95,7 +127,7 @@ At the end of each work session:
 
 ## How to run OVMM environment check
 
-Local OVMM smoke command:
+Local OVMM smoke command, only with explicit approval because local rendering has caused instability:
 
 ```bash
 bash lmm_rollout_project/scripts/env_check/ovmm_local_smoke.sh
@@ -108,13 +140,33 @@ Known local status:
 - OVMM episodes exist under `benchmark/home-robot/data/datasets/ovmm`.
 - Local Habitat-Sim currently fails at OpenGL/EGL context creation with `GL::Context: cannot retrieve OpenGL version`.
 
-Sol-RL local preflight:
+Sol-RL local preflight, safe if it only imports already installed packages:
 
 ```bash
 bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 ```
 
-Expected current local status: missing `sana` env. Do not run Sana `environment_setup.sh` locally without explicit confirmation because it installs a heavy CUDA 12.8 training stack.
+Do not run Sana `environment_setup.sh` or `flash-attn` compilation locally. The local `sana` env has the main packages but is missing `flash_attn`; finish that on a NVIDIA server.
+
+Current local Sana status:
+
+- `torch 2.9.1+cu128`, `torchvision 0.24.1+cu128`, `torchaudio 2.9.1+cu128`.
+- `sana`, `diffusers`, `transformers`, `xformers`, `mmcv`, `bitsandbytes` installed.
+- `flash_attn` missing.
+- `transformer-engine[pytorch]` missing and only required for NVFP4 / FP4 Sol-RL configs.
+
+A6000 HomeRobot env commands:
+
+```bash
+ssh -p 20400 root@219.223.207.18
+cd /root/workspace/tianshanzhang/benchmark/home-robot
+/root/.local/bin/micromamba env list
+/root/.local/bin/micromamba run -n home-robot python --version
+/root/.local/bin/micromamba run -n home-robot python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.device_count())"
+/root/.local/bin/micromamba run -n home-robot python /root/workspace/tianshanzhang/lmm_rollout_project/scripts/env_check/a6000_home_robot_import_preflight.py
+```
+
+Do not run the full HomeRobot `install_deps.sh` blindly. It downloads datasets/checkpoints and installs multiple third-party stacks. Use import-only checks first, then install missing editable packages or specific missing dependencies one at a time.
 
 ## How to run BEHAVIOR environment check
 

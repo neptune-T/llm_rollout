@@ -1,6 +1,6 @@
 # Project Memory: LMM Rollout Scaling
 
-Last updated: 2026-06-20
+Last updated: 2026-06-26
 
 ## Core Research Question
 
@@ -44,11 +44,25 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - Local host execution sees CUDA from the `home-robot` env; sandboxed execution may hide GPU or EGL devices.
 - OVMM episodes were downloaded to `/home/plote/longhorizon/benchmark/home-robot/data/datasets/ovmm` and pinned to `9ad25fbd86a3fd352c7a0fc1f99132fbb5802378`.
 - Local OVMM smoke currently reaches dataset and simulator initialization but fails at Habitat-Sim OpenGL/EGL context creation.
-- No local `sana` conda env exists. Full Sana/Sol-RL install was not run locally because it is a heavy CUDA 12.8 training stack.
+- Local `sana` conda env exists. It has `torch 2.9.1+cu128`, `torchvision 0.24.1+cu128`, `torchaudio 2.9.1+cu128`, `xformers 0.0.33.post2`, `mmcv 1.7.2`, `bitsandbytes 0.49.2`, `sana`, `diffusers`, and `transformers`.
+- Local `sana` env is still missing `flash-attn`; `transformer-engine[pytorch]` is also not installed and is only required for NVFP4 paths.
+- NVIDIA A6000 render server was provisioned at SSH target `root@219.223.207.18 -p 20400`.
+- A6000 remote workspace path: `/root/workspace/tianshanzhang`.
+- A6000 server GPU check on 2026-06-25: 4x NVIDIA RTX A6000, 49140 MiB each, driver 570.86.10.
+- First A6000 code/resource sync completed on 2026-06-25 with rsync exit code 0. Remote tree size after sync is about 14GB.
+- Synced A6000 key directories: `lmm_rollout_project` 1.7MB, `rltask/Sana` 121MB, `benchmark/home-robot` 994MB, `benchmark/BEHAVIOR-1K` 1.6GB, `basecode/behavior-1k-solution` 11GB.
+- A6000 remote ownership was changed to `root:root` after rsync to avoid Git dubious ownership warnings in VS Code Remote SSH.
+- A6000 remote `git-lfs` was installed with apt and initialized system-wide. This fixed the false modified status for HomeRobot LFS assets.
+- A6000 remote conda is installed at `/root/anaconda3`; `conda init bash` was run for root. Project-specific `sana` and `home-robot` conda environments have not yet been created on A6000.
+- A6000 sync intentionally excluded `benchmark/home-robot/data`, `basecode/behavior-1k-solution/checkpoints`, `basecode/behavior-1k-solution/BEHAVIOR-1K-684a`, caches, virtualenvs, outputs, and wandb.
+- A6000 NVIDIA preflight script passed on 2026-06-26 local server time / 2026-06-25 project session: GPUs, git, git-lfs, python3, bash, and champion repo were found. Docker was not found.
+- A6000 has usable micromamba at `/root/.local/bin/micromamba`, version 2.5.0, with root prefix `/root/micromamba`.
+- A6000 `home-robot` environment was created on 2026-06-26 at `/root/micromamba/envs/home-robot` from `benchmark/home-robot/src/home_robot/environment.yml`.
 
 ## Open Questions
 
-- Which remote machine will host BEHAVIOR / Isaac Sim simulation, and which machine will host large policy inference/training?
+- Can the A6000 server run OVMM/Habitat-Sim rendering headlessly without EGL/OpenGL failure?
+- Can the A6000 server run BEHAVIOR / Isaac Sim simulation headlessly, and which Isaac/OmniGibson version is already installed or should be installed?
 - Can BEHAVIOR-1K/OmniGibson run headless/offscreen on the intended simulation GPU without snow screen, black frames, or segmentation faults?
 - Can local Habitat-Sim EGL/OpenGL be fixed for OVMM, or should OVMM rollout move directly to a NVIDIA render server?
 - Has the HSSD HuggingFace license been accepted, and which HF account/token should be used for full OVMM scenes/objects download?
@@ -68,13 +82,21 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - BEHAVIOR champion policy server command is identified, but not runnable on local workstation due to memory.
 - BEHAVIOR simulation/eval has not yet been validated in this workspace.
 - Sol-RL code has been located and partially read; it is a reference implementation for FP4/NVFP4 rollout + BF16 training in diffusion models, not yet integrated with BEHAVIOR.
+- A6000 NVIDIA render server code migration is complete for the current non-checkpoint workspace snapshot.
+- A6000 `home-robot` env creation is complete, but import/runtime validation is still pending. No OVMM data under `benchmark/home-robot/data` and no BEHAVIOR champion checkpoints are present on A6000.
 
 ## Environment Status
 
 - Local workstation is suitable for code editing, documentation, small static checks, and light Python imports.
+- Local workstation must be treated as resource-constrained. Avoid long `git lfs pull`, package compilation such as `flash-attn`, Habitat/OVMM rendering smoke tests, BEHAVIOR checkpoint loading, or any task likely to saturate CPU/RAM/disk IO unless the user explicitly approves.
 - Local workstation is partially suitable for OVMM setup: Python package imports and dataset initialization work, but Habitat-Sim rendering currently fails.
 - Local workstation is not suitable for loading BEHAVIOR champion checkpoints.
 - BEHAVIOR / Isaac Sim rollout should be tested on a machine with a supported NVIDIA RTX GPU and stable headless/offscreen rendering.
+- A6000 render server is suitable for the next remote rendering setup attempt: 4x RTX A6000 with driver 570.86.10, reachable by SSH, and code is located at `/root/workspace/tianshanzhang`.
+- A6000 currently has system Python 3.8.2, `/root/anaconda3` conda 4.8.3, and micromamba 2.5.0 at `/root/.local/bin/micromamba`.
+- A6000 `home-robot` env exists at `/root/micromamba/envs/home-robot`. Import-only preflight and rendering smoke are still pending.
+- A6000 `sana` env has not yet been created.
+- A6000 currently does not have docker, so Isaac Sim container workflows need docker installation or a non-container local install path.
 - Large policy inference/training should run on machines with substantially more RAM and GPU memory than the local RTX 3070 Ti laptop.
 - AMD server compatibility is not assumed for the champion policy because the current champion dependency stack is CUDA/JAX-oriented. Use ROCm preflight and separate compatibility validation before training.
 
@@ -133,6 +155,32 @@ Sol-RL local preflight:
 bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 ```
 
+A6000 remote access:
+
+```bash
+ssh -p 20400 root@219.223.207.18
+cd /root/workspace/tianshanzhang
+```
+
+A6000 remote checks:
+
+```bash
+nvidia-smi
+/root/anaconda3/bin/conda info --envs
+/root/.local/bin/micromamba env list
+git -C rltask/Sana status --short
+git -C benchmark/home-robot status --short
+git -C basecode/behavior-1k-solution status --short
+```
+
+A6000 HomeRobot env:
+
+```bash
+cd /root/workspace/tianshanzhang/benchmark/home-robot
+/root/.local/bin/micromamba run -n home-robot python --version
+/root/.local/bin/micromamba run -n home-robot python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.device_count())"
+```
+
 ## Dataset / Benchmark Notes
 
 - OVMM is the immediate first benchmark for environment bring-up because it should be simpler than BEHAVIOR/Isaac.
@@ -146,7 +194,8 @@ bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 - Policy outputs 23-dimensional actions after truncating from model action dimension 32.
 - Existing inference wrapper includes stage voting, rolling inpainting, cubic action interpolation, and correction rules.
 - Sol-RL reference uses preview rollout with NVFP4 compiled model and full rollout with compiled BF16 model for diffusion post-training.
-- Local Sana/Sol-RL has no installed `sana` env. Treat the repo as algorithm reference locally unless explicitly installing a heavy CUDA training stack.
+- Local Sana/Sol-RL env is partially usable for imports and code reading. It is not complete for full Sol-RL training because `flash-attn` is missing.
+- `transformer-engine[pytorch]` is optional for the NVFP4 / FP4 rollout paths and is not installed locally.
 - OpenVLA is not the active baseline unless the champion route becomes blocked and the project explicitly pivots.
 - J-EPA/V-JEPA is not in the active method stack; do not add it without an explicit project decision.
 
@@ -155,13 +204,20 @@ bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 - `exp_20260619_001`: Local BEHAVIOR checkpoint load smoke test. Result: failed due to OOM / SIGKILL before server start.
 - `exp_20260620_001`: Local OVMM/HomeRobot import and CUDA visibility check. Result: imports pass; host sees CUDA.
 - `exp_20260620_002`: Local OVMM one-episode random-agent smoke. Result: episodes added and dataset init passes; simulator fails at OpenGL/EGL context creation.
-- `exp_20260620_003`: Local Sana/Sol-RL preflight. Result: no `sana` env; full local install not run.
+- `exp_20260620_003`: Local Sana/Sol-RL preflight. Historical result: no `sana` env at that time.
+- `exp_20260623_001`: Local Sana/Sol-RL preflight. Result: main CUDA PyTorch/Sana packages import; `flash_attn` missing.
+- `exp_20260623_002`: Local `flash-attn` low-priority single-thread install attempt. Result: interrupted because system swap became full and local crash risk was high.
+- `exp_20260626_001`: A6000 OVMM/HomeRobot environment setup requirements preflight. Result: env file and install scripts identified; avoid running full `install_deps.sh` blindly.
+- `exp_20260626_002`: A6000 mamba/micromamba search. Result: `mamba` not on PATH; `/root/.local/bin/micromamba` exists.
+- `exp_20260626_003`: A6000 micromamba validation. Result: micromamba 2.5.0 usable with root prefix `/root/micromamba`.
+- `exp_20260626_004`: A6000 `home-robot` env creation. Result: completed successfully at `/root/micromamba/envs/home-robot`.
 
 ## Key Results
 
 - No scientific rollout results yet.
 - Engineering result: local workstation cannot load BEHAVIOR champion checkpoint. Use remote large server for policy loading.
 - Engineering result: local workstation has a mostly installed OVMM/HomeRobot stack and OVMM episodes, but cannot currently create the Habitat-Sim rendering context.
+- Engineering result: A6000 now has a dedicated micromamba `home-robot` environment. Imports and rendering are not validated yet.
 
 ## Failure Modes
 
@@ -172,6 +228,10 @@ bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 - Local OVMM Habitat-Sim fails with `GL::Context: cannot retrieve OpenGL version: GL::Renderer::Error::InvalidValue`.
 - Sandboxed OVMM Habitat-Sim can also fail with `unable to find CUDA device 0 among 1 EGL devices`.
 - Missing OVMM episodes caused `FileNotFoundError` for `data/datasets/ovmm/val/viewpoints.npy`; fixed by downloading `ai-habitat/OVMM_episodes`.
+- Local heavy setup caused workstation instability/reboots. `flash-attn` build and HSSD `git lfs pull` are now considered remote-only or explicit-approval tasks.
+- Local `flash-attn` install attempt on 2026-06-23 used `nice`, `ionice`, `MAX_JOBS=1`, and `NVCC_THREADS=1`, but still pushed swap to 100%; do not retry locally.
+- A6000 initial rsync preserved local UID 1000, causing Git `dubious ownership` when accessed as root. Fixed by `chown -R root:root /root/workspace/tianshanzhang`.
+- A6000 HomeRobot initially showed many modified LFS assets because `git-lfs` was missing. Fixed by installing `git-lfs`; remaining HomeRobot dirty status is the known `src/home_robot/environment.yml` edit.
 
 ## Paper Story
 
@@ -188,8 +248,10 @@ Required evidence:
 
 ## Next Milestones
 
-1. Fix local OVMM Habitat-Sim EGL/OpenGL or run OVMM smoke on a NVIDIA RTX server.
-2. Confirm HuggingFace license/login and download HSSD scenes plus OVMM object assets if local or remote storage is sufficient.
-3. Build the standard rollout record schema on OVMM first.
-4. Fill `lmm_rollout_project/configs/deploy/lmm_deploy.env` with the NVIDIA SSH host, AMD tunnel mode, and both remote root paths.
-5. Run BEHAVIOR environment check later on the NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.
+1. Run A6000 `home-robot` import-only preflight.
+2. Download or sync OVMM data on A6000, preferably with remote download/HF mirror rather than local heavy `git lfs pull`.
+3. Run OVMM headless rendering smoke on A6000.
+4. Create A6000 `sana` environment and install `flash-attn` remotely, not locally.
+5. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
+6. Build the standard rollout record schema on OVMM first.
+7. Run BEHAVIOR environment check later on the NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.

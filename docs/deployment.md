@@ -1,6 +1,6 @@
 # Deployment Plan: Local -> NVIDIA Render Server + AMD Training Server
 
-Last updated: 2026-06-20
+Last updated: 2026-06-25
 
 ## Goal
 
@@ -10,6 +10,48 @@ Make this workspace easy to deploy from the local machine to two remote roles:
 - AMD training server: training, calibration, analysis, and Sol-RL-inspired online RL code. This machine is accessed through VS Code Tunnel rather than SSH. It is for large compute, but compatibility must be validated because the current champion baseline and Sana setup are CUDA-oriented.
 
 The active project remains champion-solution-first. OpenVLA and J-EPA/V-JEPA are not part of the current mainline.
+
+## Current NVIDIA Render Server
+
+The active NVIDIA render server is:
+
+```bash
+ssh -p 20400 root@219.223.207.18
+cd /root/workspace/tianshanzhang
+```
+
+VS Code Remote SSH target path:
+
+```text
+/root/workspace/tianshanzhang
+```
+
+Confirmed on 2026-06-25:
+
+- GPU: 4x NVIDIA RTX A6000, 49140 MiB each.
+- Driver: 570.86.10.
+- Remote conda: `/root/anaconda3`.
+- System Python: 3.8.2.
+- `git-lfs`: installed and initialized.
+- Workspace ownership: `root:root`.
+- First rsync completed with exit code 0.
+- NVIDIA preflight script passed.
+- Docker: not installed.
+
+Synced content:
+
+- `lmm_rollout_project`: project docs, memory, configs, scripts.
+- `rltask/Sana`: Sol-RL/Sana reference code.
+- `benchmark/home-robot`: OVMM/HomeRobot source code, excluding `data/`.
+- `benchmark/BEHAVIOR-1K`: BEHAVIOR code/resources.
+- `basecode/behavior-1k-solution`: champion solution code/resources, excluding checkpoints and local heavy data.
+
+Not yet present on A6000:
+
+- `benchmark/home-robot/data`.
+- `basecode/behavior-1k-solution/checkpoints`.
+- `basecode/behavior-1k-solution/BEHAVIOR-1K-684a`.
+- Project-specific conda envs such as `home-robot` and `sana`.
 
 ## Important Architecture Constraint
 
@@ -123,6 +165,12 @@ SYNC_CHECKPOINTS=1
 
 Use this only when the network/storage budget is acceptable. The local champion checkpoints are about 48GB.
 
+For the current A6000 server, prefer these next steps instead of blindly syncing all heavy artifacts from the laptop:
+
+1. Create project conda envs on A6000.
+2. Download OVMM/HSSD data on A6000 using remote bandwidth and HF mirror where possible.
+3. Transfer BEHAVIOR checkpoints only after confirming the policy server and simulator plan.
+
 ## Expected First Smoke Tests
 
 On NVIDIA render server:
@@ -149,6 +197,9 @@ Do not run Sana CUDA setup on AMD unless the ROCm plan is explicit.
 - If the render GPU is A100/H100/A800 without RT cores, do not assume Isaac Sim rendering is valid.
 - If AMD PyTorch/ROCm is not visible, do not start training.
 - If champion checkpoint loading fails on a remote machine, record RAM, VRAM, JAX devices, and exact exit code in `lmm_rollout_project/logs/daily/YYYY-MM-DD.md`.
+- If Git reports `dubious ownership` after rsync to a root-owned remote workspace, fix ownership of the target tree or add explicit safe directories. On the current A6000 server this was fixed with `chown -R root:root /root/workspace/tianshanzhang`.
+- If HomeRobot shows many asset files as modified, check `git-lfs` first. On A6000 this was fixed by installing `git-lfs`.
+- If using Isaac Sim containers on A6000, install and validate docker first. If starting with OVMM/HomeRobot, docker may not be needed for the first Habitat rendering smoke.
 
 ## Commands Added
 

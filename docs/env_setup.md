@@ -1,6 +1,6 @@
 # Environment Setup Notes
 
-Last updated: 2026-06-20
+Last updated: 2026-06-23
 
 ## Current Direction
 
@@ -10,12 +10,13 @@ BEHAVIOR champion solution remains the stronger long-horizon target for the pape
 
 ## Local Machine
 
-- Machine role: local code editing and light smoke tests.
+- Machine role: local code editing, documentation, small imports, and short metadata checks.
 - GPU: NVIDIA GeForce RTX 3070 Laptop GPU, 8GB VRAM.
 - Driver: 580.126.09.
 - CUDA reported by `nvidia-smi`: 13.0.
 - Disk under workspace: about 93GB free when checked.
 - RAM: 15GB total.
+- Resource policy: do not run long `git lfs pull`, CUDA extension builds such as `flash-attn`, Habitat/OVMM rendering smoke tests, BEHAVIOR checkpoint loading, or large package installs locally unless explicitly approved. The laptop has frozen/rebooted during heavy setup.
 
 ## OVMM / HomeRobot
 
@@ -47,11 +48,11 @@ Data status:
 - Stretch robot model exists under `data/robots/hab_stretch`.
 - OVMM episodes were downloaded to `data/datasets/ovmm`.
 - OVMM episodes were pinned to commit `9ad25fbd86a3fd352c7a0fc1f99132fbb5802378`.
-- HSSD scenes under `data/hssd-hab` are not present.
-- OVMM object assets under `data/objects` are not present.
+- HSSD scenes under `data/hssd-hab` were partially downloaded but are not verified complete.
+- OVMM object assets under `data/objects` were downloaded through Git LFS and appeared clean when checked.
 - HuggingFace CLI reported not logged in; HSSD scenes may require accepting the dataset license and logging in.
 
-Smoke command:
+Smoke command, only with explicit approval because local rendering has caused instability:
 
 ```bash
 bash lmm_rollout_project/scripts/env_check/ovmm_local_smoke.sh
@@ -96,7 +97,7 @@ These did not fix local Habitat-Sim rendering.
 
 Interpretation:
 
-The local OVMM Python stack and episodes are mostly ready, but the local workstation is blocked at Habitat-Sim EGL/OpenGL context creation. This is a rendering backend issue, not an observed Python package import issue.
+The local OVMM Python stack and episodes are mostly ready, but the local workstation is blocked at Habitat-Sim EGL/OpenGL context creation. This is a rendering backend issue, not an observed Python package import issue. Further OVMM rendering checks should run on a NVIDIA RTX render server.
 
 ## Sol-RL / Sana
 
@@ -108,14 +109,18 @@ Repository:
 
 Status:
 
-- No `sana` conda environment exists locally.
+- Local `sana` conda environment exists and partially passes preflight.
+- `torch 2.9.1+cu128`, `sana`, `diffusers`, `transformers`, and `xformers` import.
+- `mmcv 1.7.2` and `bitsandbytes 0.49.2` are installed.
+- `flash_attn` is missing.
+- `transformer-engine[pytorch]` is not installed; it is only required for NVFP4 / FP4 Sol-RL paths.
 - Sana/Sol-RL install is CUDA-training heavy.
 - `environment_setup.sh` creates or updates a Python 3.11 env, installs CUDA toolkit 12.8, torch 2.9.1 cu128, xformers, mmcv, editable Sana, Pi3, and flash-attn.
 - Sol-RL NVFP4 paths may also need `transformer-engine[pytorch]`.
 
 Local recommendation:
 
-- Do not run the full Sana install locally unless we explicitly want a CUDA training stack on the laptop.
+- Do not run full Sana install or `flash-attn` compilation locally. A low-priority single-thread install attempt still filled swap and was interrupted to avoid another freeze/reboot.
 - Use local Sana source for code reading, config parsing, and algorithm extraction.
 - Run Sol-RL training or heavy reward/model checks on the training machine after deciding CUDA vs ROCm strategy.
 
@@ -128,12 +133,32 @@ bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 Expected current result:
 
 ```text
-missing_conda_env=sana
+python_env_ok=True
+torch 2.9.1+cu128 cuda 12.8 available <depends on execution context>
+sana found
+diffusers found
+transformers found
+xformers found
+flash_attn missing
+```
+
+Server finish command for a NVIDIA CUDA machine with enough RAM:
+
+```bash
+cd /path/to/longhorizon/rltask/Sana
+MAX_JOBS=2 NVCC_THREADS=1 CMAKE_BUILD_PARALLEL_LEVEL=2 \
+  conda run -n sana pip install --no-build-isolation "flash-attn>=2.7.0"
+```
+
+Optional only for NVFP4 / FP4 Sol-RL configs:
+
+```bash
+conda run -n sana pip install --no-build-isolation "transformer-engine[pytorch]"
 ```
 
 ## Next Setup Tasks
 
-1. Fix or bypass local Habitat-Sim EGL/OpenGL rendering for OVMM.
-2. If local rendering remains blocked, run OVMM smoke on a NVIDIA RTX server.
-3. Download HSSD scenes and OVMM object assets only after HuggingFace license/login and storage location are confirmed.
-4. Keep Sana/Sol-RL as algorithm reference locally; install full training environment on the actual training machine, not the laptop, unless explicitly needed.
+1. Run OVMM rendering smoke on a NVIDIA RTX server instead of the local laptop.
+2. Finish/verify HSSD scenes on a remote machine or only with explicit local approval.
+3. Build `flash-attn` on a server if Sana needs it; do not compile it locally.
+4. Keep local work limited to code edits, docs, imports, and short checks.
