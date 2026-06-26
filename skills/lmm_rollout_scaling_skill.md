@@ -90,8 +90,10 @@ Confirmed state on 2026-06-25:
 - Docker is not installed.
 - Micromamba exists at `/root/.local/bin/micromamba`, version 2.5.0.
 - `home-robot` env was created at `/root/micromamba/envs/home-robot` from `benchmark/home-robot/src/home_robot/environment.yml`.
+- `home-robot` import-only preflight passes after Habitat-Sim/Lab/Baselines install and dependency repairs.
 - `sana` env is not created yet.
-- OVMM data and BEHAVIOR checkpoints were intentionally not synced.
+- OVMM data roots are now present under `/root/workspace/tianshanzhang/benchmark/home-robot/data`.
+- BEHAVIOR checkpoints were intentionally not synced.
 
 After rsyncing to root-owned remote workspaces:
 
@@ -166,7 +168,65 @@ cd /root/workspace/tianshanzhang/benchmark/home-robot
 /root/.local/bin/micromamba run -n home-robot python /root/workspace/tianshanzhang/lmm_rollout_project/scripts/env_check/a6000_home_robot_import_preflight.py
 ```
 
+A6000 OVMM data-root check:
+
+```bash
+ssh -p 20400 root@219.223.207.18 \
+  du -sh /root/workspace/tianshanzhang/benchmark/home-robot/data/hssd-hab \
+         /root/workspace/tianshanzhang/benchmark/home-robot/data/objects \
+         /root/workspace/tianshanzhang/benchmark/home-robot/data/datasets/ovmm \
+         /root/workspace/tianshanzhang/benchmark/home-robot/data/robots/hab_stretch
+```
+
 Do not run the full HomeRobot `install_deps.sh` blindly. It downloads datasets/checkpoints and installs multiple third-party stacks. Use import-only checks first, then install missing editable packages or specific missing dependencies one at a time.
+
+A6000 HomeRobot/Habitat install recipe used successfully on 2026-06-26:
+
+```bash
+cd /root/workspace/tianshanzhang/benchmark/home-robot
+/root/.local/bin/micromamba env create -y -n home-robot -f src/home_robot/environment.yml
+/root/.local/bin/micromamba install -y -n home-robot --override-channels -c aihabitat -c conda-forge habitat-sim=0.2.5 withbullet
+apt-get update
+apt-get install -y libopengl0
+/root/.local/bin/micromamba install -y --no-deps -n home-robot --override-channels -c pytorch -c pytorch3d -c nvidia -c conda-forge torchvision=0.14.1=py39_cu117 pytorch3d=0.7.5=py39_cu117_pyt1131
+/root/.local/bin/micromamba run -n home-robot python -m pip install -e src/third_party/habitat-lab/habitat-lab
+/root/.local/bin/micromamba run -n home-robot python -m pip install -e src/third_party/habitat-lab/habitat-baselines
+/root/.local/bin/micromamba run -n home-robot python -m pip install numpy==1.23.5 moviepy==1.0.3
+/root/.local/bin/micromamba run -n home-robot python -m pip check
+/root/.local/bin/micromamba run -n home-robot python /root/workspace/tianshanzhang/lmm_rollout_project/scripts/env_check/a6000_home_robot_import_preflight.py
+```
+
+Register HomeRobot local packages before using eval entrypoints:
+
+```bash
+cd /root/workspace/tianshanzhang/benchmark/home-robot
+/root/.local/bin/micromamba run -n home-robot python -m pip install --no-deps -e src/home_robot
+/root/.local/bin/micromamba run -n home-robot python -m pip install --no-deps -e src/home_robot_sim
+/root/.local/bin/micromamba run -n home-robot python -c "import home_robot, home_robot_sim; print('HOME_ROBOT_EDITABLE_IMPORT_OK')"
+/root/.local/bin/micromamba run -n home-robot python /root/workspace/tianshanzhang/lmm_rollout_project/scripts/env_check/a6000_home_robot_import_preflight.py
+```
+
+Use `--no-deps` for these editable installs. A full `pip install -e src/home_robot` tries to build `sophuspy==0.0.8`, which failed on the A6000 under the current CMake policy. Install later missing runtime dependencies narrowly instead of reopening the full dependency solve.
+
+Bounded A6000 OVMM random-agent smoke:
+
+```bash
+ssh -p 20400 root@219.223.207.18 \
+  'cd /root/workspace/tianshanzhang/benchmark/home-robot && timeout 240s /root/.local/bin/micromamba run -n home-robot python projects/habitat_ovmm/eval_baselines_agent.py --env_config_path projects/habitat_ovmm/configs/env/hssd_demo.yaml --agent_type random --num_episodes 1 habitat.environment.max_episode_steps=1 habitat.simulator.habitat_sim_v0.gpu_device_id=0'
+```
+
+Pitfalls from the A6000 setup:
+
+- Broad `micromamba env update -f src/home_robot_sim/environment.yml` spent over 13 minutes solving and was terminated.
+- `--override-channels` made Habitat-Sim solve quickly, but omitting PyTorch channels caused `torchvision` and `pytorch3d` to be removed.
+- Habitat-Sim import needed the system package `libopengl0`.
+- `habitat-baselines` initially pulled `numpy 2.0.2` and `moviepy 2.2.1`; repair with `numpy==1.23.5` and `moviepy==1.0.3`.
+- `eval_baselines_agent.py` does not receive the manual `sys.path` injection used by the import preflight script. Install `src/home_robot` and `src/home_robot_sim` editable before eval.
+- Full editable dependency install of `src/home_robot` can fail while compiling `sophuspy`; use editable `--no-deps` registration and keep dependency repairs narrow.
+- `OVMM_episodes` can be downloaded through `HF_ENDPOINT=https://hf-mirror.com` with `huggingface_hub.snapshot_download`.
+- `OVMM_objects` is LFS-heavy. In this environment, mirror snapshot pagination redirected to `huggingface.co`, and mirror Git LFS payload URLs used the unresolved host `us.aws.cdn.hf-mirror.org`. Use mirror Git metadata plus rsynced local payload, or rsync a verified working tree.
+- `hssd-hab` has about 56,669 runtime files. Use clean working-tree rsync excluding `.git`; validate by runtime size and sample hashes.
+- If `.git/lfs/objects` is not copied, remote Git status can show many modified LFS files even when runtime files are valid. Do not use `git status` as the payload-integrity check for runtime-only data copies.
 
 ## How to run BEHAVIOR environment check
 
@@ -288,6 +348,7 @@ Common early failures:
 - Websocket server not reachable: check host networking, `ss -ltnp`, firewall, SSH tunnel, and policy server bind host.
 - BEHAVIOR mapping points to missing checkpoints: inspect `task_checkpoint_mapping*.json`.
 - Isaac Sim black/snow screen: check GPU has RT cores, driver, headless/offscreen settings, container runtime, and Isaac Sim version.
+- `ModuleNotFoundError: home_robot_sim` in OVMM eval: install `src/home_robot` and `src/home_robot_sim` editable with `--no-deps` in the active env, then rerun the import preflight.
 
 ## Common errors and fixes
 
@@ -295,6 +356,7 @@ Common early failures:
 - Local 8GB GPU cannot load champion checkpoint: use a larger server; local machine is for code and docs only.
 - `transformer_engine` missing in Sol-RL NVFP4 modes: install `transformer-engine[pytorch]` in the same Python interpreter as `torchrun`.
 - HPSv2 reward checkpoint missing: place required files under `reward_ckpts/`.
+- `sophuspy==0.0.8` CMake policy failure during HomeRobot editable install: avoid the full dependency install path; use `pip install --no-deps -e src/home_robot` after the conda env already contains the required runtime dependencies.
 
 ## Paper-story alignment checklist
 

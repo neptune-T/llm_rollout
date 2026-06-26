@@ -53,11 +53,22 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - Synced A6000 key directories: `lmm_rollout_project` 1.7MB, `rltask/Sana` 121MB, `benchmark/home-robot` 994MB, `benchmark/BEHAVIOR-1K` 1.6GB, `basecode/behavior-1k-solution` 11GB.
 - A6000 remote ownership was changed to `root:root` after rsync to avoid Git dubious ownership warnings in VS Code Remote SSH.
 - A6000 remote `git-lfs` was installed with apt and initialized system-wide. This fixed the false modified status for HomeRobot LFS assets.
-- A6000 remote conda is installed at `/root/anaconda3`; `conda init bash` was run for root. Project-specific `sana` and `home-robot` conda environments have not yet been created on A6000.
+- A6000 remote conda is installed at `/root/anaconda3`; `conda init bash` was run for root. Project-specific `home-robot` micromamba env has been created; `sana` env has not yet been created on A6000.
 - A6000 sync intentionally excluded `benchmark/home-robot/data`, `basecode/behavior-1k-solution/checkpoints`, `basecode/behavior-1k-solution/BEHAVIOR-1K-684a`, caches, virtualenvs, outputs, and wandb.
 - A6000 NVIDIA preflight script passed on 2026-06-26 local server time / 2026-06-25 project session: GPUs, git, git-lfs, python3, bash, and champion repo were found. Docker was not found.
 - A6000 has usable micromamba at `/root/.local/bin/micromamba`, version 2.5.0, with root prefix `/root/micromamba`.
 - A6000 `home-robot` environment was created on 2026-06-26 at `/root/micromamba/envs/home-robot` from `benchmark/home-robot/src/home_robot/environment.yml`.
+- A6000 HomeRobot/OVMM import-only preflight passed on 2026-06-26 after installing Habitat-Sim, Habitat-Lab, and Habitat-Baselines.
+- A6000 `home-robot` confirmed versions: Python 3.9.23, PyTorch 1.13.1 CUDA 11.7 build, torchvision 0.14.1, PyTorch3D 0.7.5, PyG 2.5.2, numpy 1.23.5, habitat-sim 0.2.5, habitat-lab 0.2.5, habitat-baselines 0.2.5.
+- A6000 `home-robot` PyTorch CUDA sees 4x NVIDIA RTX A6000.
+- A6000 OVMM data roots are now present under `/root/workspace/tianshanzhang/benchmark/home-robot/data`.
+- A6000 `OVMM_episodes` was downloaded through `HF_ENDPOINT=https://hf-mirror.com` and pinned to `9ad25fbd86a3fd352c7a0fc1f99132fbb5802378`.
+- A6000 `OVMM_objects` mirror snapshot failed because mirror pagination redirected to `huggingface.co`; mirror Git metadata worked, but Git LFS payload download failed because `us.aws.cdn.hf-mirror.org` did not resolve. The runtime working tree was filled by rsyncing verified local payload files while excluding `.git`.
+- A6000 `hssd-hab` scene data was synced by clean local-to-remote rsync while excluding `.git`; final runtime size is 3.9G and sample hashes match local files.
+- A6000 `hab_stretch` robot assets were synced by rsync; final runtime size is 47M and sample hashes match local files.
+- A6000 OVMM data-root sanity check passed for `data/hssd-hab`, `data/objects`, `data/datasets/ovmm`, and `data/robots/hab_stretch`.
+- First bounded A6000 OVMM random-agent smoke reached the eval entrypoint but failed before simulator construction because `home_robot_sim` was not installed into the `home-robot` env.
+- A6000 `home_robot` and `home_robot_sim` are now installed editable with `pip install --no-deps -e ...`; direct import and expanded import preflight pass after this repair.
 
 ## Open Questions
 
@@ -65,7 +76,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - Can the A6000 server run BEHAVIOR / Isaac Sim simulation headlessly, and which Isaac/OmniGibson version is already installed or should be installed?
 - Can BEHAVIOR-1K/OmniGibson run headless/offscreen on the intended simulation GPU without snow screen, black frames, or segmentation faults?
 - Can local Habitat-Sim EGL/OpenGL be fixed for OVMM, or should OVMM rollout move directly to a NVIDIA render server?
-- Has the HSSD HuggingFace license been accepted, and which HF account/token should be used for full OVMM scenes/objects download?
+- Has the HSSD HuggingFace license been accepted for future direct downloads, and which HF account/token should be used if we need to reconstruct OVMM data without the local working tree?
 - What is the exact Isaac Sim / OmniGibson version required by the local champion solution copy?
 - Can the 4 champion checkpoints load on the intended large server with enough RAM and VRAM?
 - Does Sol-RL code in `rltask/Sana` map cleanly to robot policy rollouts, or is it only an algorithmic reference from diffusion post-training?
@@ -83,7 +94,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - BEHAVIOR simulation/eval has not yet been validated in this workspace.
 - Sol-RL code has been located and partially read; it is a reference implementation for FP4/NVFP4 rollout + BF16 training in diffusion models, not yet integrated with BEHAVIOR.
 - A6000 NVIDIA render server code migration is complete for the current non-checkpoint workspace snapshot.
-- A6000 `home-robot` env creation is complete, but import/runtime validation is still pending. No OVMM data under `benchmark/home-robot/data` and no BEHAVIOR champion checkpoints are present on A6000.
+- A6000 `home-robot` env creation, import-only validation, OVMM data-root validation, and editable local package registration are complete. The next step is a bounded OVMM random-agent rendering/reset smoke. BEHAVIOR champion checkpoints are still not present on A6000.
 
 ## Environment Status
 
@@ -94,7 +105,9 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - BEHAVIOR / Isaac Sim rollout should be tested on a machine with a supported NVIDIA RTX GPU and stable headless/offscreen rendering.
 - A6000 render server is suitable for the next remote rendering setup attempt: 4x RTX A6000 with driver 570.86.10, reachable by SSH, and code is located at `/root/workspace/tianshanzhang`.
 - A6000 currently has system Python 3.8.2, `/root/anaconda3` conda 4.8.3, and micromamba 2.5.0 at `/root/.local/bin/micromamba`.
-- A6000 `home-robot` env exists at `/root/micromamba/envs/home-robot`. Import-only preflight and rendering smoke are still pending.
+- A6000 `home-robot` env exists at `/root/micromamba/envs/home-robot`. Import-only preflight passes; rendering smoke is still pending.
+- A6000 OVMM data roots present: `data/datasets/ovmm`, `data/objects`, `data/hssd-hab`, and `data/robots/hab_stretch`.
+- A6000 `home_robot==0.1.0` and `home_robot_sim==0.1.0` are installed editable in the `home-robot` env with `--no-deps`.
 - A6000 `sana` env has not yet been created.
 - A6000 currently does not have docker, so Isaac Sim container workflows need docker installation or a non-container local install path.
 - Large policy inference/training should run on machines with substantially more RAM and GPU memory than the local RTX 3070 Ti laptop.
@@ -179,11 +192,60 @@ A6000 HomeRobot env:
 cd /root/workspace/tianshanzhang/benchmark/home-robot
 /root/.local/bin/micromamba run -n home-robot python --version
 /root/.local/bin/micromamba run -n home-robot python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.device_count())"
+/root/.local/bin/micromamba run -n home-robot python /root/workspace/tianshanzhang/lmm_rollout_project/scripts/env_check/a6000_home_robot_import_preflight.py
 ```
+
+A6000 HomeRobot/Habitat dependency repair recipe used on 2026-06-26:
+
+```bash
+cd /root/workspace/tianshanzhang/benchmark/home-robot
+/root/.local/bin/micromamba install -y -n home-robot --override-channels -c aihabitat -c conda-forge habitat-sim=0.2.5 withbullet
+apt-get install -y libopengl0
+/root/.local/bin/micromamba install -y --no-deps -n home-robot --override-channels -c pytorch -c pytorch3d -c nvidia -c conda-forge torchvision=0.14.1=py39_cu117 pytorch3d=0.7.5=py39_cu117_pyt1131
+/root/.local/bin/micromamba run -n home-robot python -m pip install -e src/third_party/habitat-lab/habitat-lab
+/root/.local/bin/micromamba run -n home-robot python -m pip install -e src/third_party/habitat-lab/habitat-baselines
+/root/.local/bin/micromamba run -n home-robot python -m pip install numpy==1.23.5 moviepy==1.0.3
+/root/.local/bin/micromamba run -n home-robot python -m pip check
+```
+
+A6000 HomeRobot local package registration:
+
+```bash
+cd /root/workspace/tianshanzhang/benchmark/home-robot
+/root/.local/bin/micromamba run -n home-robot python -m pip install --no-deps -e src/home_robot
+/root/.local/bin/micromamba run -n home-robot python -m pip install --no-deps -e src/home_robot_sim
+/root/.local/bin/micromamba run -n home-robot python -c "import home_robot, home_robot_sim; print('HOME_ROBOT_EDITABLE_IMPORT_OK')"
+/root/.local/bin/micromamba run -n home-robot python /root/workspace/tianshanzhang/lmm_rollout_project/scripts/env_check/a6000_home_robot_import_preflight.py
+```
+
+A6000 OVMM data validation:
+
+```bash
+ssh -p 20400 root@219.223.207.18 \
+  du -sh /root/workspace/tianshanzhang/benchmark/home-robot/data/hssd-hab \
+         /root/workspace/tianshanzhang/benchmark/home-robot/data/objects \
+         /root/workspace/tianshanzhang/benchmark/home-robot/data/datasets/ovmm \
+         /root/workspace/tianshanzhang/benchmark/home-robot/data/robots/hab_stretch
+```
+
+A6000 bounded OVMM random-agent smoke:
+
+```bash
+ssh -p 20400 root@219.223.207.18 \
+  'cd /root/workspace/tianshanzhang/benchmark/home-robot && timeout 240s /root/.local/bin/micromamba run -n home-robot python projects/habitat_ovmm/eval_baselines_agent.py --env_config_path projects/habitat_ovmm/configs/env/hssd_demo.yaml --agent_type random --num_episodes 1 habitat.environment.max_episode_steps=1 habitat.simulator.habitat_sim_v0.gpu_device_id=0'
+```
+
+Recommended data transfer notes:
+
+- `OVMM_episodes`: `huggingface_hub.snapshot_download` works through `HF_ENDPOINT=https://hf-mirror.com`.
+- `OVMM_objects`: mirror snapshot and Git LFS payload download are unreliable in this environment; use mirror Git metadata plus local payload rsync, or rsync a verified working tree directly.
+- `hssd-hab`: use clean working-tree rsync excluding `.git`; remote runtime target should be `/root/workspace/tianshanzhang/benchmark/home-robot/data/hssd-hab`.
+- For LFS-heavy repos where `.git/lfs/objects` is not copied, validate by runtime size and sample file hashes, not by `git status`.
 
 ## Dataset / Benchmark Notes
 
 - OVMM is the immediate first benchmark for environment bring-up because it should be simpler than BEHAVIOR/Isaac.
+- A6000 OVMM data assembly is complete enough for first smoke: episodes via HF mirror, objects via mirror metadata plus rsynced payload, HSSD via clean working-tree rsync, and Stretch robot assets via rsync.
 - BEHAVIOR-1K is still the preferred later long-horizon mobile manipulation benchmark, but Isaac Sim rendering stability is a major risk.
 - LIBERO/CALVIN/RoboTwin can be auxiliary checks but should not pull the project away from mobile manipulation.
 
@@ -211,13 +273,38 @@ cd /root/workspace/tianshanzhang/benchmark/home-robot
 - `exp_20260626_002`: A6000 mamba/micromamba search. Result: `mamba` not on PATH; `/root/.local/bin/micromamba` exists.
 - `exp_20260626_003`: A6000 micromamba validation. Result: micromamba 2.5.0 usable with root prefix `/root/micromamba`.
 - `exp_20260626_004`: A6000 `home-robot` env creation. Result: completed successfully at `/root/micromamba/envs/home-robot`.
+- `exp_20260626_005`: Sync project memory/skill/log to A6000. Result: first SSH timeout, retry succeeded.
+- `exp_20260626_006`: Added A6000 HomeRobot import preflight script. Result: script checks imports and CUDA only.
+- `exp_20260626_007`: A6000 HomeRobot import preflight before Habitat install. Result: core PyTorch/CUDA imports pass; `habitat_sim` and `habitat` fail.
+- `exp_20260626_008`: Broad HomeRobot simulation env update. Result: solver stayed active over 13 minutes and was terminated.
+- `exp_20260626_009`: Narrow Habitat-Sim install. Result: `habitat-sim 0.2.5` installed, but `torchvision` and `pytorch3d` were removed and `libOpenGL.so.0` was missing.
+- `exp_20260626_010`: A6000 HomeRobot repair and core import validation. Result: installed `libopengl0`, restored `torchvision`/`pytorch3d`, installed editable Habitat-Lab, preflight passed.
+- `exp_20260626_011`: Editable Habitat-Baselines install. Result: installed, then repaired numpy/moviepy pins; `pip check` passed.
+- `exp_20260626_012`: Expanded A6000 HomeRobot import preflight. Result: passed, including `numpy`, `quaternion`, and `habitat_baselines`.
+- `exp_20260626_013`: OVMM data availability inventory. Result: local data exists; A6000 data roots were missing or incomplete.
+- `exp_20260626_014`: Local-to-A6000 OVMM scene/object rsync trial. Result: too slow for full payload; interrupted after partial progress.
+- `exp_20260626_015`: Preserve partial rsync directories. Result: partial directories renamed and kept out of clean target paths.
+- `exp_20260626_016`: A6000 OVMM episode download through HF mirror. Result: completed and pinned to `9ad25fbd86a3fd352c7a0fc1f99132fbb5802378`.
+- `exp_20260626_017`: First A6000 OVMM object snapshot download. Result: failed due mirror endpoint/path behavior.
+- `exp_20260626_018`: Retried A6000 OVMM object snapshot with endpoint inside micromamba and lower concurrency. Result: failed; mirror pagination redirected to `huggingface.co`.
+- `exp_20260626_019`: A6000 OVMM object metadata clone through HF mirror Git endpoint. Result: metadata clone and checkout succeeded with LFS smudge disabled.
+- `exp_20260626_020`: A6000 OVMM object Git LFS pull from mirror. Result: failed because `us.aws.cdn.hf-mirror.org` did not resolve.
+- `exp_20260626_021`: Fill A6000 OVMM object working tree by rsyncing local payload. Result: completed; runtime payload hashes match samples.
+- `exp_20260626_022`: Sync A6000 OVMM Stretch robot assets. Result: completed; sample hashes match.
+- `exp_20260626_023`: Sync A6000 HSSD scene data by clean rsync excluding `.git`. Result: completed; 3.9G runtime size and sample hashes match.
+- `exp_20260626_024`: A6000 OVMM data-root sanity check. Result: passed for scenes, objects, episodes, and Stretch robot assets.
+- `exp_20260626_025`: First bounded A6000 OVMM random-agent smoke. Result: failed before simulator construction because `home_robot_sim` was not importable by the eval entrypoint.
+- `exp_20260626_026`: A6000 editable HomeRobot package registration. Result: `home_robot` and `home_robot_sim` installed with `--no-deps`; direct import and expanded preflight passed.
 
 ## Key Results
 
 - No scientific rollout results yet.
 - Engineering result: local workstation cannot load BEHAVIOR champion checkpoint. Use remote large server for policy loading.
 - Engineering result: local workstation has a mostly installed OVMM/HomeRobot stack and OVMM episodes, but cannot currently create the Habitat-Sim rendering context.
-- Engineering result: A6000 now has a dedicated micromamba `home-robot` environment. Imports and rendering are not validated yet.
+- Engineering result: A6000 now has a dedicated micromamba `home-robot` environment. Import-only validation passes; rendering is not validated yet.
+- Engineering result: A6000 `home-robot` import-only preflight now passes with Habitat-Sim/Lab/Baselines and CUDA-visible PyTorch.
+- Engineering result: A6000 now has all four OVMM data roots needed for first smoke; rendering/runtime validation is the next blocker.
+- Engineering result: A6000 OVMM eval entrypoints should now resolve `home_robot` and `home_robot_sim` without manual `sys.path` injection.
 
 ## Failure Modes
 
@@ -232,6 +319,14 @@ cd /root/workspace/tianshanzhang/benchmark/home-robot
 - Local `flash-attn` install attempt on 2026-06-23 used `nice`, `ionice`, `MAX_JOBS=1`, and `NVCC_THREADS=1`, but still pushed swap to 100%; do not retry locally.
 - A6000 initial rsync preserved local UID 1000, causing Git `dubious ownership` when accessed as root. Fixed by `chown -R root:root /root/workspace/tianshanzhang`.
 - A6000 HomeRobot initially showed many modified LFS assets because `git-lfs` was missing. Fixed by installing `git-lfs`; remaining HomeRobot dirty status is the known `src/home_robot/environment.yml` edit.
+- A6000 broad `micromamba env update -f src/home_robot_sim/environment.yml` was too slow in the current channel setup; prefer narrow installs with `--override-channels`.
+- A6000 narrow Habitat-Sim install with only `aihabitat` and `conda-forge` removed `torchvision` and `pytorch3d`; restore them with exact CUDA 11.7/PyTorch 1.13.1 builds and `--no-deps`.
+- A6000 Habitat-Sim import needed system `libOpenGL.so.0`; fixed with `apt-get install -y libopengl0`.
+- A6000 Habitat-Baselines install initially upgraded `numpy` to 2.0.2 and selected `moviepy` 2.2.1; pin `numpy==1.23.5` and `moviepy==1.0.3`.
+- HF mirror can serve small OVMM episode snapshots, but large LFS-heavy repos can fail through pagination redirects or mirror CDN DNS. Use rsync from a verified working tree when mirror LFS is blocked.
+- Remote data repos with runtime files but without `.git/lfs/objects` can show many modified LFS files in Git. Treat this as expected for runtime-only payload copies and validate by hashes instead.
+- A6000 first OVMM smoke failure: `ModuleNotFoundError: No module named 'home_robot_sim'` from the eval entrypoint. Fixed by editable local package registration.
+- A6000 full `pip install -e src/home_robot` attempted to build `sophuspy==0.0.8` and failed under the current CMake policy. Use `pip install --no-deps -e src/home_robot` and `pip install --no-deps -e src/home_robot_sim`, then install any later missing optional dependency narrowly.
 
 ## Paper Story
 
@@ -248,10 +343,9 @@ Required evidence:
 
 ## Next Milestones
 
-1. Run A6000 `home-robot` import-only preflight.
-2. Download or sync OVMM data on A6000, preferably with remote download/HF mirror rather than local heavy `git lfs pull`.
-3. Run OVMM headless rendering smoke on A6000.
-4. Create A6000 `sana` environment and install `flash-attn` remotely, not locally.
-5. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
-6. Build the standard rollout record schema on OVMM first.
-7. Run BEHAVIOR environment check later on the NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.
+1. Rerun the bounded OVMM random-agent smoke on A6000.
+2. If rendering fails after imports pass, classify whether it is EGL/OpenGL, Habitat config/data path, or agent/config mismatch.
+3. Create A6000 `sana` environment and install `flash-attn` remotely, not locally.
+4. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
+5. Build the standard rollout record schema on OVMM first.
+6. Run BEHAVIOR environment check later on the NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.
