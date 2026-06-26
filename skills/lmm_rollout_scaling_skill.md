@@ -91,7 +91,9 @@ Confirmed state on 2026-06-25:
 - Micromamba exists at `/root/.local/bin/micromamba`, version 2.5.0.
 - `home-robot` env was created at `/root/micromamba/envs/home-robot` from `benchmark/home-robot/src/home_robot/environment.yml`.
 - `home-robot` import-only preflight passes after Habitat-Sim/Lab/Baselines install and dependency repairs.
-- `sana` env is not created yet.
+- `sana` env exists at `/root/anaconda3/envs/sana`.
+- A6000 `sana` core imports pass for PyTorch cu128, xformers, mmcv, editable Sana, and Pi3.
+- A6000 `sana` still lacks `flash-attn`; `transformer-engine[pytorch]` is optional for NVFP4/FP4 Sol-RL paths.
 - OVMM data roots are now present under `/root/workspace/tianshanzhang/benchmark/home-robot/data`.
 - OVMM Python imports and runtime data roots are configured, but headless rendering is blocked by the current NVIDIA GL/EGL driver stack.
 - BEHAVIOR checkpoints were intentionally not synced.
@@ -157,6 +159,41 @@ Current local Sana status:
 - `sana`, `diffusers`, `transformers`, `xformers`, `mmcv`, `bitsandbytes` installed.
 - `flash_attn` missing.
 - `transformer-engine[pytorch]` missing and only required for NVFP4 / FP4 Sol-RL configs.
+
+A6000 Sana/Sol-RL status:
+
+- Env path: `/root/anaconda3/envs/sana`.
+- Python: 3.11.6 after CUDA toolkit solve.
+- CUDA toolkit: 12.8, `nvcc 12.8`.
+- PyTorch stack: `torch 2.9.1+cu128`, `torchvision 0.24.1+cu128`, `torchaudio 2.9.1+cu128`.
+- Installed and import-validated: `xformers 0.0.33.post2`, `mmcv 1.7.2`, editable `sana 0.2.0`, `diffusers`, `transformers`, `accelerate`, `bitsandbytes`, `clip`, `peft`, `timm`, `hpsv2`, `open_clip`, `wandb`, `gradio`, and `pi3 0.1`.
+- Missing: `flash-attn`.
+- Optional: `transformer-engine[pytorch]` for NVFP4/FP4 Sol-RL paths.
+- `mmcv._ext` is absent; pure-Python `mmcv` config imports pass. Only revisit if a runtime import needs compiled mmcv ops.
+- Pi3 import warns that CUDA-compiled RoPE2D is missing and falls back to slow PyTorch RoPE2D. This does not block import preflight.
+
+A6000 Sana quick validation:
+
+```bash
+/root/anaconda3/envs/sana/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())"
+/root/anaconda3/envs/sana/bin/python -c "import sana, diffusers, transformers, xformers, bitsandbytes, pi3; print('SANA_CORE_IMPORT_OK')"
+/root/anaconda3/envs/sana/bin/python -c "import pi3; import pi3.models.pi3; import pi3.models.pi3x; import pi3.utils.geometry; print('PI3_IMPORT_OK')"
+```
+
+A6000 Pi3 source-only install workflow:
+
+```bash
+cd /root/workspace/tianshanzhang
+git --git-dir=/root/workspace/tianshanzhang/externals/Pi3_shallow/.git archive \
+  --format=tar \
+  --prefix=Pi3_src/ \
+  -o /root/workspace/tianshanzhang/externals/Pi3_src_sparse.tar \
+  HEAD pi3 pyproject.toml requirements.txt LICENSE README.md
+tar -xf /root/workspace/tianshanzhang/externals/Pi3_src_sparse.tar -C /root/workspace/tianshanzhang/externals
+/root/anaconda3/envs/sana/bin/python -m pip install --no-deps /root/workspace/tianshanzhang/externals/Pi3_src
+```
+
+Use this source-only workflow because direct `pip install git+https://github.com/yyfz/Pi3.git --no-deps` hung during clone, shallow Git checkout did not complete, and full GitHub archive downloads produced an invalid gzip file in this network environment.
 
 A6000 HomeRobot env commands:
 
