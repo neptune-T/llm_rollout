@@ -69,10 +69,15 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - A6000 OVMM data-root sanity check passed for `data/hssd-hab`, `data/objects`, `data/datasets/ovmm`, and `data/robots/hab_stretch`.
 - First bounded A6000 OVMM random-agent smoke reached the eval entrypoint but failed before simulator construction because `home_robot_sim` was not installed into the `home-robot` env.
 - A6000 `home_robot` and `home_robot_sim` are now installed editable with `pip install --no-deps -e ...`; direct import and expanded import preflight pass after this repair.
+- A6000 uses `lmm_rollout_project/shims/sophus.py` to expose installed `sophuspy` as the legacy module name `sophus` required by HomeRobot geometry utilities.
+- A6000 `libegl1` is installed; this fixed the initial `no EGL devices found` state and made `libEGL.so.1` discoverable.
+- A6000 has an NVIDIA driver/user-space mismatch: loaded kernel module is 570.86.10, while system `libnvidia-gl-570` and `libnvidia-compute-570` user-space libraries are 570.133.07.
+- A non-invasive NVIDIA 570.86.10 runtime overlay exists under `/root/workspace/tianshanzhang/runtime_libs/`; with Magnum validation it exposes 4 EGL devices and maps CUDA device 0 to EGL device 0, but Habitat-Sim still fails at OpenGL version retrieval.
+- A6000 OVMM Python environment and data roots are configured, but OVMM headless rendering is currently blocked by host/container NVIDIA GL/EGL stack consistency.
 
 ## Open Questions
 
-- Can the A6000 server run OVMM/Habitat-Sim rendering headlessly without EGL/OpenGL failure?
+- Can the A6000 server run OVMM/Habitat-Sim rendering headlessly after host-level NVIDIA kernel/user-space library alignment or reboot?
 - Can the A6000 server run BEHAVIOR / Isaac Sim simulation headlessly, and which Isaac/OmniGibson version is already installed or should be installed?
 - Can BEHAVIOR-1K/OmniGibson run headless/offscreen on the intended simulation GPU without snow screen, black frames, or segmentation faults?
 - Can local Habitat-Sim EGL/OpenGL be fixed for OVMM, or should OVMM rollout move directly to a NVIDIA render server?
@@ -94,7 +99,9 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - BEHAVIOR simulation/eval has not yet been validated in this workspace.
 - Sol-RL code has been located and partially read; it is a reference implementation for FP4/NVFP4 rollout + BF16 training in diffusion models, not yet integrated with BEHAVIOR.
 - A6000 NVIDIA render server code migration is complete for the current non-checkpoint workspace snapshot.
-- A6000 `home-robot` env creation, import-only validation, OVMM data-root validation, and editable local package registration are complete. The next step is a bounded OVMM random-agent rendering/reset smoke. BEHAVIOR champion checkpoints are still not present on A6000.
+- A6000 `home-robot` env creation, import-only validation, OVMM data-root validation, editable local package registration, and `sophus` compatibility repair are complete.
+- A6000 OVMM rendering smoke reaches dataset and simulator initialization but is blocked at Habitat-Sim OpenGL context creation due to the current NVIDIA GL/EGL stack.
+- BEHAVIOR champion checkpoints are still not present on A6000.
 
 ## Environment Status
 
@@ -108,6 +115,8 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - A6000 `home-robot` env exists at `/root/micromamba/envs/home-robot`. Import-only preflight passes; rendering smoke is still pending.
 - A6000 OVMM data roots present: `data/datasets/ovmm`, `data/objects`, `data/hssd-hab`, and `data/robots/hab_stretch`.
 - A6000 `home_robot==0.1.0` and `home_robot_sim==0.1.0` are installed editable in the `home-robot` env with `--no-deps`.
+- A6000 requires `PYTHONPATH=/root/workspace/tianshanzhang/lmm_rollout_project/shims:$PYTHONPATH` for OVMM eval commands unless the shim is packaged later.
+- A6000 currently should not be treated as a working OVMM render host until the NVIDIA kernel/user-space library mismatch is fixed.
 - A6000 `sana` env has not yet been created.
 - A6000 currently does not have docker, so Isaac Sim container workflows need docker installation or a non-container local install path.
 - Large policy inference/training should run on machines with substantially more RAM and GPU memory than the local RTX 3070 Ti laptop.
@@ -232,7 +241,14 @@ A6000 bounded OVMM random-agent smoke:
 
 ```bash
 ssh -p 20400 root@219.223.207.18 \
-  'cd /root/workspace/tianshanzhang/benchmark/home-robot && timeout 240s /root/.local/bin/micromamba run -n home-robot python projects/habitat_ovmm/eval_baselines_agent.py --env_config_path projects/habitat_ovmm/configs/env/hssd_demo.yaml --agent_type random --num_episodes 1 habitat.environment.max_episode_steps=1 habitat.simulator.habitat_sim_v0.gpu_device_id=0'
+  'cd /root/workspace/tianshanzhang/benchmark/home-robot && PYTHONPATH=/root/workspace/tianshanzhang/lmm_rollout_project/shims:$PYTHONPATH timeout 240s /root/.local/bin/micromamba run -n home-robot python projects/habitat_ovmm/eval_baselines_agent.py --env_config_path projects/habitat_ovmm/configs/env/hssd_demo.yaml --agent_type random --num_episodes 1 habitat.environment.max_episode_steps=1 habitat.simulator.habitat_sim_v0.gpu_device_id=0'
+```
+
+A6000 experimental NVIDIA 570.86.10 runtime overlay, for diagnostics only:
+
+```bash
+LD_LIBRARY_PATH=/root/workspace/tianshanzhang/runtime_libs/nvidia57086_cuda:/root/workspace/tianshanzhang/runtime_libs/nvidia57086_gl/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+__EGL_VENDOR_LIBRARY_FILENAMES=/root/workspace/tianshanzhang/runtime_libs/nvidia57086_gl/usr/share/glvnd/egl_vendor.d/10_nvidia.json
 ```
 
 Recommended data transfer notes:
@@ -295,6 +311,20 @@ Recommended data transfer notes:
 - `exp_20260626_024`: A6000 OVMM data-root sanity check. Result: passed for scenes, objects, episodes, and Stretch robot assets.
 - `exp_20260626_025`: First bounded A6000 OVMM random-agent smoke. Result: failed before simulator construction because `home_robot_sim` was not importable by the eval entrypoint.
 - `exp_20260626_026`: A6000 editable HomeRobot package registration. Result: `home_robot` and `home_robot_sim` installed with `--no-deps`; direct import and expanded preflight passed.
+- `exp_20260626_027`: A6000 bounded smoke after editable package registration. Result: progressed past `home_robot_sim`, failed on missing legacy `sophus` module.
+- `exp_20260626_028`: Added `sophus` compatibility shim. Result: expanded import preflight passed.
+- `exp_20260626_029`: A6000 bounded smoke with shim. Result: reached dataset/simulator init, failed with `no EGL devices found`.
+- `exp_20260626_030`: A6000 EGL diagnostics. Result: NVIDIA device nodes and vendor json exist; `/dev/dri` and system `libegl1` were missing; system NVIDIA user-space libs mismatch suspected.
+- `exp_20260626_031`: Installed `libegl1`. Result: generic `libEGL.so.1` is discoverable and loadable.
+- `exp_20260626_032`: A6000 bounded smoke after `libegl1`. Result: failure changed to CUDA/EGL device mapping.
+- `exp_20260626_033`: GPU ID mapping probe. Result: device IDs 0-3 all failed mapping to the exposed EGL device.
+- `exp_20260626_034`: NVIDIA version diagnostics. Result: kernel module 570.86.10, system user-space NVIDIA libraries 570.133.07.
+- `exp_20260626_035`: Built non-invasive 570.86.10 NVIDIA runtime overlay. Result: overlay libraries are present; manual multi-library `ctypes` validation is not clean due double-free at exit.
+- `exp_20260626_036`: A6000 bounded smoke with overlay. Result: CUDA/EGL mapping changed to OpenGL version retrieval failure.
+- `exp_20260626_037`: Magnum validation for overlay. Result: 4 EGL devices found and CUDA device 0 maps to EGL device 0; OpenGL context/version remains invalid.
+- `exp_20260626_038`: Session resume and control-file sync. Result: confirmed Stage 1.1 and synced docs/tools.
+- `exp_20260626_039`: Overlay smoke with `CUDA_VISIBLE_DEVICES=0`. Result: same OpenGL version retrieval failure.
+- `exp_20260626_040`: Overlay smoke with `EGL_PLATFORM=surfaceless` and `PYOPENGL_PLATFORM=egl`. Result: same OpenGL version retrieval failure; current A6000 render setup is blocked by host/container NVIDIA GL/EGL stack.
 
 ## Key Results
 
@@ -305,6 +335,8 @@ Recommended data transfer notes:
 - Engineering result: A6000 `home-robot` import-only preflight now passes with Habitat-Sim/Lab/Baselines and CUDA-visible PyTorch.
 - Engineering result: A6000 now has all four OVMM data roots needed for first smoke; rendering/runtime validation is the next blocker.
 - Engineering result: A6000 OVMM eval entrypoints should now resolve `home_robot` and `home_robot_sim` without manual `sys.path` injection.
+- Engineering result: A6000 OVMM smoke reaches Habitat dataset and simulator initialization, so Python imports and OVMM runtime data are no longer the blocker.
+- Engineering result: A6000 rendering is blocked by NVIDIA GL/EGL context validity. The strongest evidence is Magnum reporting 4 EGL devices and a correct CUDA/EGL mapping under the 570.86.10 overlay, followed by `GL::Context: cannot retrieve OpenGL version`.
 
 ## Failure Modes
 
@@ -327,6 +359,12 @@ Recommended data transfer notes:
 - Remote data repos with runtime files but without `.git/lfs/objects` can show many modified LFS files in Git. Treat this as expected for runtime-only payload copies and validate by hashes instead.
 - A6000 first OVMM smoke failure: `ModuleNotFoundError: No module named 'home_robot_sim'` from the eval entrypoint. Fixed by editable local package registration.
 - A6000 full `pip install -e src/home_robot` attempted to build `sophuspy==0.0.8` and failed under the current CMake policy. Use `pip install --no-deps -e src/home_robot` and `pip install --no-deps -e src/home_robot_sim`, then install any later missing optional dependency narrowly.
+- A6000 HomeRobot geometry imports require `sophus`; fixed with the local shim that re-exports installed `sophuspy`.
+- A6000 Habitat-Sim EGL failures evolved as follows:
+  - Before `libegl1`: `no EGL devices found`.
+  - After `libegl1`: `unable to find CUDA device X among 1 EGL devices in total`.
+  - With 570.86.10 overlay: CUDA/EGL mapping succeeds under Magnum validation, then `GL::Context: cannot retrieve OpenGL version`.
+- A6000 NVIDIA mismatch: loaded kernel module 570.86.10 but system user-space libraries 570.133.07. Random EGL flags did not fix the final OpenGL context failure.
 
 ## Paper Story
 
@@ -343,9 +381,8 @@ Required evidence:
 
 ## Next Milestones
 
-1. Rerun the bounded OVMM random-agent smoke on A6000.
-2. If rendering fails after imports pass, classify whether it is EGL/OpenGL, Habitat config/data path, or agent/config mismatch.
-3. Create A6000 `sana` environment and install `flash-attn` remotely, not locally.
-4. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
-5. Build the standard rollout record schema on OVMM first.
-6. Run BEHAVIOR environment check later on the NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.
+1. Ask for or arrange host-level fix on the A6000 render server: align NVIDIA kernel module and user-space GL/EGL libraries, or reboot into the installed 570.133.07 stack, or use another NVIDIA render host.
+2. Continue non-render setup while waiting: create A6000 `sana` environment and install `flash-attn` remotely, not locally.
+3. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
+4. Build the standard rollout record schema on OVMM once a render host works.
+5. Run BEHAVIOR environment check later on a working NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.

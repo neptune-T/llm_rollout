@@ -93,6 +93,7 @@ Confirmed state on 2026-06-25:
 - `home-robot` import-only preflight passes after Habitat-Sim/Lab/Baselines install and dependency repairs.
 - `sana` env is not created yet.
 - OVMM data roots are now present under `/root/workspace/tianshanzhang/benchmark/home-robot/data`.
+- OVMM Python imports and runtime data roots are configured, but headless rendering is blocked by the current NVIDIA GL/EGL driver stack.
 - BEHAVIOR checkpoints were intentionally not synced.
 
 After rsyncing to root-owned remote workspaces:
@@ -208,11 +209,37 @@ cd /root/workspace/tianshanzhang/benchmark/home-robot
 
 Use `--no-deps` for these editable installs. A full `pip install -e src/home_robot` tries to build `sophuspy==0.0.8`, which failed on the A6000 under the current CMake policy. Install later missing runtime dependencies narrowly instead of reopening the full dependency solve.
 
+Add the project shim path for OVMM eval commands:
+
+```bash
+export PYTHONPATH=/root/workspace/tianshanzhang/lmm_rollout_project/shims:$PYTHONPATH
+```
+
+The shim `lmm_rollout_project/shims/sophus.py` re-exports installed `sophuspy` under the legacy module name `sophus`, which HomeRobot imports from `home_robot.utils.geometry._base`.
+
 Bounded A6000 OVMM random-agent smoke:
 
 ```bash
 ssh -p 20400 root@219.223.207.18 \
-  'cd /root/workspace/tianshanzhang/benchmark/home-robot && timeout 240s /root/.local/bin/micromamba run -n home-robot python projects/habitat_ovmm/eval_baselines_agent.py --env_config_path projects/habitat_ovmm/configs/env/hssd_demo.yaml --agent_type random --num_episodes 1 habitat.environment.max_episode_steps=1 habitat.simulator.habitat_sim_v0.gpu_device_id=0'
+  'cd /root/workspace/tianshanzhang/benchmark/home-robot && PYTHONPATH=/root/workspace/tianshanzhang/lmm_rollout_project/shims:$PYTHONPATH timeout 240s /root/.local/bin/micromamba run -n home-robot python projects/habitat_ovmm/eval_baselines_agent.py --env_config_path projects/habitat_ovmm/configs/env/hssd_demo.yaml --agent_type random --num_episodes 1 habitat.environment.max_episode_steps=1 habitat.simulator.habitat_sim_v0.gpu_device_id=0'
+```
+
+Current A6000 OVMM render status:
+
+- Baseline with system user-space NVIDIA libs reaches dataset/simulator init but fails in EGL.
+- `libegl1` is installed and `libEGL.so.1` is discoverable.
+- Loaded NVIDIA kernel module is 570.86.10, but system `libnvidia-gl-570` / `libnvidia-compute-570` are 570.133.07.
+- A diagnostic 570.86.10 runtime overlay exists at `/root/workspace/tianshanzhang/runtime_libs/`.
+- With the overlay and `MAGNUM_GPU_VALIDATION=ON`, Magnum reports 4 EGL devices and maps CUDA device 0 to EGL device 0, then fails with `GL::Context: cannot retrieve OpenGL version`.
+- `CUDA_VISIBLE_DEVICES=0`, `EGL_PLATFORM=surfaceless`, and `PYOPENGL_PLATFORM=egl` did not fix the final OpenGL context failure.
+- Do not continue random EGL flag iteration on this server unless the host-level NVIDIA kernel/user-space library mismatch is fixed.
+
+Diagnostic overlay env, for reproducing the current failure only:
+
+```bash
+export LD_LIBRARY_PATH=/root/workspace/tianshanzhang/runtime_libs/nvidia57086_cuda:/root/workspace/tianshanzhang/runtime_libs/nvidia57086_gl/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+export __EGL_VENDOR_LIBRARY_FILENAMES=/root/workspace/tianshanzhang/runtime_libs/nvidia57086_gl/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+export MAGNUM_GPU_VALIDATION=ON
 ```
 
 Pitfalls from the A6000 setup:
@@ -223,6 +250,12 @@ Pitfalls from the A6000 setup:
 - `habitat-baselines` initially pulled `numpy 2.0.2` and `moviepy 2.2.1`; repair with `numpy==1.23.5` and `moviepy==1.0.3`.
 - `eval_baselines_agent.py` does not receive the manual `sys.path` injection used by the import preflight script. Install `src/home_robot` and `src/home_robot_sim` editable before eval.
 - Full editable dependency install of `src/home_robot` can fail while compiling `sophuspy`; use editable `--no-deps` registration and keep dependency repairs narrow.
+- Installed `sophuspy 1.2.0` exports module name `sophuspy`, while HomeRobot imports `sophus`. Use the project shim path.
+- A6000 render failure progression:
+  - Missing `libegl1`: `no EGL devices found`.
+  - After `libegl1`: `unable to find CUDA device X among 1 EGL devices in total`.
+  - With 570.86.10 overlay: EGL/CUDA mapping succeeds, then `GL::Context: cannot retrieve OpenGL version`.
+- This progression points to a host/container NVIDIA GL/EGL stack issue, not a missing OVMM dataset or Python dependency.
 - `OVMM_episodes` can be downloaded through `HF_ENDPOINT=https://hf-mirror.com` with `huggingface_hub.snapshot_download`.
 - `OVMM_objects` is LFS-heavy. In this environment, mirror snapshot pagination redirected to `huggingface.co`, and mirror Git LFS payload URLs used the unresolved host `us.aws.cdn.hf-mirror.org`. Use mirror Git metadata plus rsynced local payload, or rsync a verified working tree.
 - `hssd-hab` has about 56,669 runtime files. Use clean working-tree rsync excluding `.git`; validate by runtime size and sample hashes.
@@ -349,6 +382,8 @@ Common early failures:
 - BEHAVIOR mapping points to missing checkpoints: inspect `task_checkpoint_mapping*.json`.
 - Isaac Sim black/snow screen: check GPU has RT cores, driver, headless/offscreen settings, container runtime, and Isaac Sim version.
 - `ModuleNotFoundError: home_robot_sim` in OVMM eval: install `src/home_robot` and `src/home_robot_sim` editable with `--no-deps` in the active env, then rerun the import preflight.
+- `ModuleNotFoundError: sophus` in OVMM eval: ensure `PYTHONPATH` includes `/root/workspace/tianshanzhang/lmm_rollout_project/shims`, then rerun the import preflight.
+- `GL::Context: cannot retrieve OpenGL version` on A6000 after EGL/CUDA mapping succeeds: stop env-var iteration and fix the host NVIDIA GL/EGL stack or switch render machine.
 
 ## Common errors and fixes
 
@@ -357,6 +392,7 @@ Common early failures:
 - `transformer_engine` missing in Sol-RL NVFP4 modes: install `transformer-engine[pytorch]` in the same Python interpreter as `torchrun`.
 - HPSv2 reward checkpoint missing: place required files under `reward_ckpts/`.
 - `sophuspy==0.0.8` CMake policy failure during HomeRobot editable install: avoid the full dependency install path; use `pip install --no-deps -e src/home_robot` after the conda env already contains the required runtime dependencies.
+- NVIDIA kernel/user-space mismatch on A6000: kernel module 570.86.10 but system user-space libraries 570.133.07. A runtime overlay can reproduce/diagnose, but a durable fix likely needs admin-level driver/library alignment or reboot.
 
 ## Paper-story alignment checklist
 
