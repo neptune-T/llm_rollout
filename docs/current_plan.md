@@ -1,6 +1,6 @@
 # Current Plan: OVMM-First LMM Rollout Scaling
 
-Last updated: 2026-06-20
+Last updated: 2026-06-27
 
 ## Purpose
 
@@ -64,6 +64,14 @@ Sol-RL contributes the abstract rollout-scaling pattern:
 
 For this project, Sol-RL is not copied directly. It must be translated from image diffusion post-training to BEHAVIOR rollout records and robot policy updates.
 
+Important clarification from 2026-06-27:
+
+- Sol-RL's FP4/NVFP4 implementation is not a required method for this project.
+- Transformer Engine / NVFP4 is an image-generation-specific cheap rollout mechanism, not the scientific contribution.
+- Our project only needs a cheap rollout proxy that can be compared against high-precision rollout.
+- For VLM / flow-matching / action-chunk policies, cheap rollout can come from quantized weights, fewer action sampling or flow integration steps, lower observation resolution, cached visual/language features, smaller draft policies, or other lower-cost rollout approximations.
+- Robotics reward/progress should come from environment success, stage progress, contact/articulation metrics, and verified rollout outcomes, not Sana image reward models.
+
 ## First Minimal Closed Loop
 
 0. Use local HomeRobot/OVMM as the first environment target.
@@ -95,3 +103,4 @@ After baseline rollout works:
 
 - 2026-06-19: Active plan reset to champion-solution-first. Prior OpenVLA/J-EPA exploration is historical reference only.
 - 2026-06-20: Immediate Stage 1 target changed to OVMM-first per advisor guidance. BEHAVIOR champion remains the later/main long-horizon target.
+- 2026-06-27: NVFP4/Transformer Engine downgraded to optional engineering detail. Active cheap rollout design should be robotics-policy-specific rather than copied from image-generation Sol-RL.

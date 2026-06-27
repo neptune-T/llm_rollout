@@ -1,6 +1,6 @@
 # Project Memory: LMM Rollout Scaling
 
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 
 ## Core Research Question
 
@@ -74,9 +74,11 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - A6000 has an NVIDIA driver/user-space mismatch: loaded kernel module is 570.86.10, while system `libnvidia-gl-570` and `libnvidia-compute-570` user-space libraries are 570.133.07.
 - A non-invasive NVIDIA 570.86.10 runtime overlay exists under `/root/workspace/tianshanzhang/runtime_libs/`; with Magnum validation it exposes 4 EGL devices and maps CUDA device 0 to EGL device 0, but Habitat-Sim still fails at OpenGL version retrieval.
 - A6000 OVMM Python environment and data roots are configured, but OVMM headless rendering is currently blocked by host/container NVIDIA GL/EGL stack consistency.
-- A6000 `sana` env exists at `/root/anaconda3/envs/sana` with Python 3.11.6, CUDA toolkit 12.8, PyTorch 2.9.1+cu128, torchvision 0.24.1+cu128, torchaudio 2.9.1+cu128, xformers 0.0.33.post2, mmcv 1.7.2, editable Sana 0.2.0, and Pi3 0.1.
-- A6000 `sana` core import preflight passes for `torch`, `torchvision`, `torchaudio`, `xformers`, `mmcv`, `sana`, `diffusers`, `transformers`, `accelerate`, `bitsandbytes`, `clip`, `peft`, `timm`, `hpsv2`, `open_clip`, `wandb`, `gradio`, and `pi3`.
-- A6000 `sana` still lacks `flash-attn`; `transformer-engine[pytorch]` is not installed and is only required for NVFP4/FP4 Sol-RL paths.
+- A6000 `sana` env exists at `/root/anaconda3/envs/sana` with Python 3.11.6, CUDA toolkit 12.8, PyTorch 2.9.1+cu128, torchvision 0.24.1+cu128, torchaudio 2.9.1+cu128, xformers 0.0.33.post2, mmcv 1.7.2, editable Sana 0.2.0, Pi3 0.1, and flash-attn 2.8.3.post1.
+- A6000 `sana` core import preflight passes for `torch`, `torchvision`, `torchaudio`, `xformers`, `mmcv`, `sana`, `diffusers`, `transformers`, `accelerate`, `bitsandbytes`, `clip`, `peft`, `timm`, `hpsv2`, `open_clip`, `wandb`, `gradio`, `pi3`, `flash_attn`, and `flash_attn_2_cuda`.
+- A6000 `sana` still lacks `transformer-engine[pytorch]`; this only blocks NVFP4/FP4 Sol-RL paths, not core BF16/Sana imports.
+- A6000 `transformer-engine[pytorch]` install attempts on 2026-06-26 selected `transformer-engine 2.16.1` but did not install: no matching precompiled `transformer_engine_torch` wheel was found for `torch 2.9.1+cu128`, the first source build failed on missing `cudnn.h`, and the explicit-path retry became unobservable before compiler activity.
+- Project decision on 2026-06-27: `transformer-engine` / NVFP4 / FP4 is not a required project dependency or method. It is a Sol-RL image-generation-specific cheap rollout implementation detail. Our project may use any cheap rollout proxy suitable for robotics VLM/action-chunk policies, including quantized VLM/action policy weights, lower image resolution, fewer flow-matching/action sampling steps, smaller draft policies, cached features, or stage-aware high-precision verification.
 
 ## Open Questions
 
@@ -88,7 +90,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - What is the exact Isaac Sim / OmniGibson version required by the local champion solution copy?
 - Can the 4 champion checkpoints load on the intended large server with enough RAM and VRAM?
 - Does Sol-RL code in `rltask/Sana` map cleanly to robot policy rollouts, or is it only an algorithmic reference from diffusion post-training?
-- What cheap rollout modes are feasible for Pi0.5/OpenPI/B1K policy: low precision JAX, quantized PyTorch conversion, smaller model, lower resolution, fewer denoising steps, or surrogate policy?
+- What cheap rollout modes are feasible for Pi0.5/OpenPI/B1K policy: low precision JAX, quantized PyTorch conversion, smaller model, lower resolution, fewer flow/action integration steps, fewer action chunk candidates, cached VLM/visual features, or surrogate policy?
 - What stage metrics can be extracted reliably from BEHAVIOR logs: task stage, contacts, object joint progress, action saturation, resets, and timeout?
 
 ## Current Pipeline Status
@@ -100,11 +102,11 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - OVMM/HomeRobot local Python stack is usable, but rendering is blocked by Habitat-Sim OpenGL/EGL context creation.
 - BEHAVIOR champion policy server command is identified, but not runnable on local workstation due to memory.
 - BEHAVIOR simulation/eval has not yet been validated in this workspace.
-- Sol-RL code has been located and partially read; it is a reference implementation for FP4/NVFP4 rollout + BF16 training in diffusion models, not yet integrated with BEHAVIOR.
+- Sol-RL code has been located and partially read. It is a reference implementation for "cheap explore / high-precision verify or train" in diffusion models, not a required dependency stack. The project should borrow the rollout-scaling pattern, not the image-generation-specific NVFP4 implementation.
 - A6000 NVIDIA render server code migration is complete for the current non-checkpoint workspace snapshot.
 - A6000 `home-robot` env creation, import-only validation, OVMM data-root validation, editable local package registration, and `sophus` compatibility repair are complete.
 - A6000 OVMM rendering smoke reaches dataset and simulator initialization but is blocked at Habitat-Sim OpenGL context creation due to the current NVIDIA GL/EGL stack.
-- A6000 `sana` non-render setup is mostly complete: CUDA toolkit, PyTorch cu128, xformers, mmcv, editable Sana, and Pi3 import validation pass. Remaining Sol-RL dependency work is `flash-attn`, plus optional `transformer-engine[pytorch]` for NVFP4/FP4.
+- A6000 `sana` non-render setup is now complete for the core Sana/Sol-RL import path: CUDA toolkit, PyTorch cu128, xformers, mmcv, editable Sana, Pi3, and flash-attn import validation pass. NVFP4/FP4 Sol-RL remains unavailable, but this is not a blocker for the active robotics route.
 - BEHAVIOR champion checkpoints are still not present on A6000.
 
 ## Environment Status
@@ -121,7 +123,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - A6000 `home_robot==0.1.0` and `home_robot_sim==0.1.0` are installed editable in the `home-robot` env with `--no-deps`.
 - A6000 requires `PYTHONPATH=/root/workspace/tianshanzhang/lmm_rollout_project/shims:$PYTHONPATH` for OVMM eval commands unless the shim is packaged later.
 - A6000 currently should not be treated as a working OVMM render host until the NVIDIA kernel/user-space library mismatch is fixed.
-- A6000 `sana` env exists at `/root/anaconda3/envs/sana`. Core Sana/Sol-RL imports and Pi3 import pass; `flash-attn` remains missing.
+- A6000 `sana` env exists at `/root/anaconda3/envs/sana`. Core Sana/Sol-RL imports pass, including Pi3 and flash-attn. `transformer-engine[pytorch]` is not installed and is no longer on the critical path.
 - A6000 currently does not have docker, so Isaac Sim container workflows need docker installation or a non-container local install path.
 - Large policy inference/training should run on machines with substantially more RAM and GPU memory than the local RTX 3070 Ti laptop.
 - AMD server compatibility is not assumed for the champion policy because the current champion dependency stack is CUDA/JAX-oriented. Use ROCm preflight and separate compatibility validation before training.
@@ -188,6 +190,33 @@ tar -xf /root/workspace/tianshanzhang/externals/Pi3_src_sparse.tar -C /root/work
 /root/anaconda3/envs/sana/bin/python -m pip install --no-deps /root/workspace/tianshanzhang/externals/Pi3_src
 /root/anaconda3/envs/sana/bin/python -c "import pi3; import pi3.models.pi3; import pi3.models.pi3x; import pi3.utils.geometry; print('PI3_IMPORT_OK')"
 ```
+
+A6000 flash-attn build recipe, used successfully for `flash_attn-2.8.3.post1`:
+
+```bash
+cd /root/workspace/tianshanzhang/rltask/Sana
+timeout 7200s env \
+  PATH=/root/anaconda3/envs/sana/bin:$PATH \
+  CUDA_HOME=/root/anaconda3/envs/sana \
+  CUDA_PATH=/root/anaconda3/envs/sana \
+  CPATH=/root/anaconda3/envs/sana/targets/x86_64-linux/include:/root/anaconda3/envs/sana/include \
+  LIBRARY_PATH=/root/anaconda3/envs/sana/targets/x86_64-linux/lib:/root/anaconda3/envs/sana/lib \
+  LD_LIBRARY_PATH=/root/anaconda3/envs/sana/targets/x86_64-linux/lib:/root/anaconda3/envs/sana/lib:$LD_LIBRARY_PATH \
+  FLASH_ATTENTION_FORCE_BUILD=TRUE \
+  MAX_JOBS=8 \
+  NVCC_THREADS=2 \
+  /root/anaconda3/envs/sana/bin/python -m pip install -v --timeout 60 --retries 1 --progress-bar off --no-build-isolation "flash-attn>=2.7.0"
+
+/root/anaconda3/envs/sana/bin/python -c "import torch, xformers, mmcv, sana, pi3, flash_attn, flash_attn_2_cuda; print('SANA_PREFLIGHT_OK', torch.__version__, torch.version.cuda, flash_attn.__version__)"
+```
+
+A6000 transformer-engine status:
+
+```bash
+/root/anaconda3/envs/sana/bin/python -m pip show transformer-engine transformer-engine-torch transformer-engine-cu12
+```
+
+Current result: not installed. It is only required for Sol-RL NVFP4/FP4 modes. Do not repeat the same source-build attempt without changing the wheel/torch strategy.
 
 OVMM local smoke:
 
@@ -296,8 +325,8 @@ Recommended data transfer notes:
 - Policy outputs 23-dimensional actions after truncating from model action dimension 32.
 - Existing inference wrapper includes stage voting, rolling inpainting, cubic action interpolation, and correction rules.
 - Sol-RL reference uses preview rollout with NVFP4 compiled model and full rollout with compiled BF16 model for diffusion post-training.
-- Local Sana/Sol-RL env is partially usable for imports and code reading. It is not complete for full Sol-RL training because `flash-attn` is missing.
-- A6000 Sana/Sol-RL env is now the preferred CUDA setup target. It has editable Sana and Pi3 import-validated; `flash-attn` remains the main missing package before full Sol-RL path validation.
+- Local Sana/Sol-RL env is partially usable for imports and code reading. It is not complete for full Sol-RL training because `flash-attn` is missing locally.
+- A6000 Sana/Sol-RL env is now the preferred CUDA setup target. It has editable Sana, Pi3, and flash-attn import-validated.
 - `transformer-engine[pytorch]` is optional for the NVFP4 / FP4 rollout paths and is not installed locally.
 - OpenVLA is not the active baseline unless the champion route becomes blocked and the project explicitly pivots.
 - J-EPA/V-JEPA is not in the active method stack; do not add it without an explicit project decision.
@@ -361,7 +390,23 @@ Recommended data transfer notes:
 - `exp_20260626_049`: A6000 xformers install. Result: `xformers 0.0.33.post2` installed and import-validated.
 - `exp_20260626_050`: A6000 mmcv install. Result: `mmcv 1.7.2` pure-Python install passed config imports; compiled `mmcv._ext` absent.
 - `exp_20260626_051`: A6000 editable Sana install. Result: Sana 0.2.0 and core imports passed.
+- `exp_20260626_052`: Sync project-control files to A6000 before continuing Sana setup. Result: rsync completed.
+- `exp_20260626_053`: Direct Pi3 VCS install attempt. Result: hung during GitHub clone; residual processes cleaned up.
+- `exp_20260626_054`: Pi3 shallow clone attempt. Result: Git objects fetched but checkout did not complete cleanly.
+- `exp_20260626_055`: Pi3 GitHub archive download with bounded timeout. Result: timed out after partial payload.
+- `exp_20260626_056`: Pi3 archive resume attempt. Result: remote path did not support byte-range resume.
+- `exp_20260626_057`: Longer Pi3 archive download. Result: exited 0 but failed gzip/tar validation.
 - `exp_20260626_058`: A6000 Pi3 source-only install. Result: `pi3 0.1` installed from a source-only Git archive and import-validated; slow PyTorch RoPE2D fallback warning observed.
+- `exp_20260626_059`: Sync project-control files after Pi3 setup. Result: rsync completed.
+- `exp_20260626_060`: First A6000 flash-attn install attempt. Result: appeared stuck before compiler activity and was interrupted.
+- `exp_20260626_061`: A6000 ninja check. Result: `ninja 1.13.0` available in env, but env `bin/` must be placed on `PATH` for non-activated remote commands.
+- `exp_20260626_062`: A6000 flash-attn forced source build with ninja on PATH. Result: reached CUDA compile and failed on missing `cuda_runtime_api.h`.
+- `exp_20260626_063`: A6000 flash-attn build with explicit CUDA include/library paths. Result: header issue fixed, reached `[51/73]`, then timed out at 3600s.
+- `exp_20260626_064`: A6000 flash-attn build with explicit CUDA paths and 7200s timeout. Result: `flash_attn 2.8.3.post1` installed and import-validated with `flash_attn_2_cuda`.
+- `exp_20260626_065`: Sync updated project-control files to A6000 after flash-attn setup. Result: rsync completed.
+- `exp_20260626_066`: First A6000 transformer-engine install attempt. Result: selected `transformer-engine 2.16.1`, no matching precompiled torch wheel, source build failed on missing `cudnn.h`; no package installed.
+- `exp_20260626_067`: A6000 transformer-engine retry with explicit CUDA/cuDNN paths. Result: reached wheel build stage but became unobservable with no compiler child process; interrupted and residual processes terminated; core Sana preflight still passed.
+- `exp_20260626_068`: Sync updated logs, memory, and skill docs to A6000 after transformer-engine attempts. Result: rsync completed.
 
 ## Key Results
 
@@ -374,7 +419,8 @@ Recommended data transfer notes:
 - Engineering result: A6000 OVMM eval entrypoints should now resolve `home_robot` and `home_robot_sim` without manual `sys.path` injection.
 - Engineering result: A6000 OVMM smoke reaches Habitat dataset and simulator initialization, so Python imports and OVMM runtime data are no longer the blocker.
 - Engineering result: A6000 rendering is blocked by NVIDIA GL/EGL context validity. The strongest evidence is Magnum reporting 4 EGL devices and a correct CUDA/EGL mapping under the 570.86.10 overlay, followed by `GL::Context: cannot retrieve OpenGL version`.
-- Engineering result: A6000 `sana` environment now passes core imports and Pi3 import validation; remaining known gap is `flash-attn`.
+- Engineering result: A6000 `sana` environment now passes core imports, Pi3 import validation, and flash-attn compiled-extension import validation.
+- Engineering result: A6000 `transformer-engine[pytorch]` is not installed. This blocks Sol-RL NVFP4/FP4 paths only; BF16/core Sana imports remain usable.
 
 ## Failure Modes
 
@@ -407,6 +453,8 @@ Recommended data transfer notes:
 - A6000 Pi3 shallow clone fetched Git objects but checkout failed before completion, leaving an unusable working tree with `index.lock`.
 - A6000 Pi3 full GitHub archive download exited with code 0 but failed `tar` validation with unexpected EOF. Use source-only archive from the shallow Git object database instead.
 - A6000 Pi3 import warns that CUDA-compiled RoPE2D is missing and falls back to a slower PyTorch implementation. This does not block import preflight but may affect Pi3 runtime speed.
+- A6000 flash-attn build initially failed because non-activated remote commands did not expose env `bin/` on `PATH` and the compiler could not find CUDA headers. The successful recipe sets `PATH`, `CUDA_HOME`, `CPATH`, `LIBRARY_PATH`, `LD_LIBRARY_PATH`, `FLASH_ATTENTION_FORCE_BUILD=TRUE`, `MAX_JOBS=8`, and a 7200s timeout.
+- A6000 transformer-engine install currently has no working path under `torch 2.9.1+cu128`: the generated precompiled wheel was unavailable, source build first failed on missing cuDNN headers, and the explicit-path retry stalled before observable compiler activity. A different torch/TE version pairing or direct wheel strategy is likely needed.
 
 ## Paper Story
 
@@ -424,7 +472,7 @@ Required evidence:
 ## Next Milestones
 
 1. Ask for or arrange host-level fix on the A6000 render server: align NVIDIA kernel module and user-space GL/EGL libraries, or reboot into the installed 570.133.07 stack, or use another NVIDIA render host.
-2. Continue non-render setup while waiting: install `flash-attn` remotely in the A6000 `sana` env, not locally.
+2. Continue non-render setup only if needed: resolve `transformer-engine[pytorch]` with a compatible wheel/torch strategy if NVFP4/FP4 Sol-RL paths are selected.
 3. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
 4. Build the standard rollout record schema on OVMM once a render host works.
 5. Run BEHAVIOR environment check later on a working NVIDIA render machine: headless render, reset, step, observation extraction, and video/keyframe save.

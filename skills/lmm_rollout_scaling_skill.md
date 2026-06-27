@@ -1,6 +1,6 @@
 # Skill: LMM Rollout Scaling
 
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 
 ## What this project is about
 
@@ -15,6 +15,7 @@ This project studies online RL with rollout scaling for long-horizon mobile mani
 - Not planner/controller engineering unless it helps answer rollout scaling reliability and online RL utility.
 - Not currently an OpenVLA baseline project.
 - Not currently a J-EPA/V-JEPA/world-model reward project.
+- Not required to use Transformer Engine, NVFP4, or FP4 just because Sol-RL used them for image generation.
 
 ## Key terminology
 
@@ -23,8 +24,8 @@ This project studies online RL with rollout scaling for long-horizon mobile mani
 - BEHAVIOR-1K: Main candidate benchmark for household mobile manipulation in Isaac Sim / OmniGibson.
 - OVMM: First smoke benchmark for easier mobile-manipulation rollout setup in Habitat/HomeRobot.
 - BEHAVIOR champion solution: The Pi0.5/OpenPI-derived BEHAVIOR Challenge winning solution used as the engineering baseline.
-- Sol-RL: FP4/NVFP4 explore, BF16 train rollout-based RL reference from the Sana repo.
-- cheap rollout: Lower-cost candidate rollout mode, such as low precision, smaller model, lower resolution, fewer inference steps, or other fast surrogate.
+- Sol-RL: Rollout-scaling reference from the Sana repo. Its FP4/NVFP4 explore and BF16 train setup is image-generation-specific; use the pattern, not necessarily the exact precision stack.
+- cheap rollout: Lower-cost candidate rollout mode, such as quantized policy weights, smaller model, lower resolution, fewer flow/action integration steps, fewer action chunk candidates, cached features, or another fast surrogate.
 - high-precision rollout: BF16/FP16/FP32 or otherwise trusted rollout mode used as the reference ranking.
 - ranking correlation: Spearman, Kendall tau, top-k overlap, success agreement, false positive and false negative rates between cheap and high-precision candidate rankings.
 - rollout scaling: Increasing the number of candidate rollouts to improve policy selection or training signal.
@@ -92,8 +93,8 @@ Confirmed state on 2026-06-25:
 - `home-robot` env was created at `/root/micromamba/envs/home-robot` from `benchmark/home-robot/src/home_robot/environment.yml`.
 - `home-robot` import-only preflight passes after Habitat-Sim/Lab/Baselines install and dependency repairs.
 - `sana` env exists at `/root/anaconda3/envs/sana`.
-- A6000 `sana` core imports pass for PyTorch cu128, xformers, mmcv, editable Sana, and Pi3.
-- A6000 `sana` still lacks `flash-attn`; `transformer-engine[pytorch]` is optional for NVFP4/FP4 Sol-RL paths.
+- A6000 `sana` core imports pass for PyTorch cu128, xformers, mmcv, editable Sana, Pi3, and flash-attn.
+- A6000 `sana` still lacks `transformer-engine[pytorch]`; this blocks only Sol-RL's NVFP4/FP4 configs, not our core robotics route.
 - OVMM data roots are now present under `/root/workspace/tianshanzhang/benchmark/home-robot/data`.
 - OVMM Python imports and runtime data roots are configured, but headless rendering is blocked by the current NVIDIA GL/EGL driver stack.
 - BEHAVIOR checkpoints were intentionally not synced.
@@ -151,7 +152,7 @@ Sol-RL local preflight, safe if it only imports already installed packages:
 bash lmm_rollout_project/scripts/env_check/solrl_local_preflight.sh
 ```
 
-Do not run Sana `environment_setup.sh` or `flash-attn` compilation locally. The local `sana` env has the main packages but is missing `flash_attn`; finish that on a NVIDIA server.
+Do not run Sana `environment_setup.sh` or `flash-attn` compilation locally. The local `sana` env has the main packages but is missing `flash_attn`; the A6000 `sana` env is the validated remote environment for flash-attn.
 
 Current local Sana status:
 
@@ -167,8 +168,8 @@ A6000 Sana/Sol-RL status:
 - CUDA toolkit: 12.8, `nvcc 12.8`.
 - PyTorch stack: `torch 2.9.1+cu128`, `torchvision 0.24.1+cu128`, `torchaudio 2.9.1+cu128`.
 - Installed and import-validated: `xformers 0.0.33.post2`, `mmcv 1.7.2`, editable `sana 0.2.0`, `diffusers`, `transformers`, `accelerate`, `bitsandbytes`, `clip`, `peft`, `timm`, `hpsv2`, `open_clip`, `wandb`, `gradio`, and `pi3 0.1`.
-- Missing: `flash-attn`.
-- Optional: `transformer-engine[pytorch]` for NVFP4/FP4 Sol-RL paths.
+- Installed and import-validated: `flash-attn 2.8.3.post1` and compiled extension `flash_attn_2_cuda`.
+- Not installed: `transformer-engine[pytorch]`. It is optional for NVFP4/FP4 Sol-RL paths and currently needs a different wheel/torch strategy.
 - `mmcv._ext` is absent; pure-Python `mmcv` config imports pass. Only revisit if a runtime import needs compiled mmcv ops.
 - Pi3 import warns that CUDA-compiled RoPE2D is missing and falls back to slow PyTorch RoPE2D. This does not block import preflight.
 
@@ -178,6 +179,7 @@ A6000 Sana quick validation:
 /root/anaconda3/envs/sana/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())"
 /root/anaconda3/envs/sana/bin/python -c "import sana, diffusers, transformers, xformers, bitsandbytes, pi3; print('SANA_CORE_IMPORT_OK')"
 /root/anaconda3/envs/sana/bin/python -c "import pi3; import pi3.models.pi3; import pi3.models.pi3x; import pi3.utils.geometry; print('PI3_IMPORT_OK')"
+/root/anaconda3/envs/sana/bin/python -c "import torch, xformers, mmcv, sana, pi3, flash_attn, flash_attn_2_cuda; print('SANA_PREFLIGHT_OK', torch.__version__, torch.version.cuda, flash_attn.__version__)"
 ```
 
 A6000 Pi3 source-only install workflow:
@@ -194,6 +196,41 @@ tar -xf /root/workspace/tianshanzhang/externals/Pi3_src_sparse.tar -C /root/work
 ```
 
 Use this source-only workflow because direct `pip install git+https://github.com/yyfz/Pi3.git --no-deps` hung during clone, shallow Git checkout did not complete, and full GitHub archive downloads produced an invalid gzip file in this network environment.
+
+A6000 flash-attn build workflow:
+
+```bash
+cd /root/workspace/tianshanzhang/rltask/Sana
+timeout 7200s env \
+  PATH=/root/anaconda3/envs/sana/bin:$PATH \
+  CUDA_HOME=/root/anaconda3/envs/sana \
+  CUDA_PATH=/root/anaconda3/envs/sana \
+  CPATH=/root/anaconda3/envs/sana/targets/x86_64-linux/include:/root/anaconda3/envs/sana/include \
+  LIBRARY_PATH=/root/anaconda3/envs/sana/targets/x86_64-linux/lib:/root/anaconda3/envs/sana/lib \
+  LD_LIBRARY_PATH=/root/anaconda3/envs/sana/targets/x86_64-linux/lib:/root/anaconda3/envs/sana/lib:$LD_LIBRARY_PATH \
+  FLASH_ATTENTION_FORCE_BUILD=TRUE \
+  MAX_JOBS=8 \
+  NVCC_THREADS=2 \
+  /root/anaconda3/envs/sana/bin/python -m pip install -v --timeout 60 --retries 1 --progress-bar off --no-build-isolation "flash-attn>=2.7.0"
+```
+
+This recipe is needed because non-activated SSH commands do not put env `bin/` on `PATH`, and flash-attn needs CUDA headers from `/root/anaconda3/envs/sana/targets/x86_64-linux/include`.
+
+A6000 transformer-engine status:
+
+```bash
+/root/anaconda3/envs/sana/bin/python -m pip show transformer-engine transformer-engine-torch transformer-engine-cu12
+```
+
+Current status: not installed. The attempted `transformer-engine[pytorch]` install selected `transformer-engine 2.16.1`, did not find a matching precompiled `transformer_engine_torch` wheel for `torch 2.9.1+cu128`, failed once on missing `cudnn.h`, and then became unobservable during an explicit-path retry. Do not repeat the same source-build attempt; use a compatible prebuilt wheel/torch pairing or defer NVFP4.
+
+Project decision:
+
+- Defer NVFP4 unless explicitly needed.
+- Do not make Transformer Engine part of the critical path.
+- For our VLM / flow-matching / action-chunk policies, define cheap rollout modes directly from the robotics stack.
+- Candidate cheap modes: INT8/INT4 or weight-only quantization of VLM/action policy components, BF16/FP16 vs FP32 comparison, fewer flow/action integration steps, fewer generated action chunks, lower observation resolution, smaller draft policy, cached language/visual embeddings, or stage-specific cheap proxies.
+- High-precision verification should be used for contact-rich or high-risk stages when cheap ranking is uncertain.
 
 A6000 HomeRobot env commands:
 
@@ -342,7 +379,7 @@ lmm_rollout_project/logs/daily/YYYY-MM-DD.md
 Cheap rollout mode must be explicitly named and logged. Candidate modes include:
 
 - Low precision inference.
-- Quantized model or NVFP4-like surrogate.
+- Quantized model or rollout surrogate. NVFP4 is optional; INT8/INT4/weight-only quantization, fewer flow/action steps, smaller draft policies, or lower-resolution observations can also define cheap rollout.
 - Lower image resolution.
 - Fewer denoising/action sampling steps.
 - Smaller policy.
@@ -427,6 +464,7 @@ Common early failures:
 - `~/models/checkpoint_*` missing: create or use a local mapping file pointing to actual checkpoint paths.
 - Local 8GB GPU cannot load champion checkpoint: use a larger server; local machine is for code and docs only.
 - `transformer_engine` missing in Sol-RL NVFP4 modes: install `transformer-engine[pytorch]` in the same Python interpreter as `torchrun`.
+- `transformer-engine[pytorch]` on A6000 with `torch 2.9.1+cu128`: current direct pip install is not solved. Core Sana works without it; NVFP4/FP4 configs should be treated as unavailable until a compatible TE wheel/torch strategy is chosen.
 - HPSv2 reward checkpoint missing: place required files under `reward_ckpts/`.
 - `sophuspy==0.0.8` CMake policy failure during HomeRobot editable install: avoid the full dependency install path; use `pip install --no-deps -e src/home_robot` after the conda env already contains the required runtime dependencies.
 - NVIDIA kernel/user-space mismatch on A6000: kernel module 570.86.10 but system user-space libraries 570.133.07. A runtime overlay can reproduce/diagnose, but a durable fix likely needs admin-level driver/library alignment or reboot.
