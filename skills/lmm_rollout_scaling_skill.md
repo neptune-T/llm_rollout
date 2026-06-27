@@ -97,6 +97,7 @@ Confirmed state on 2026-06-25:
 - A6000 `sana` still lacks `transformer-engine[pytorch]`; this blocks only Sol-RL's NVFP4/FP4 configs, not our core robotics route.
 - OVMM data roots are now present under `/root/workspace/tianshanzhang/benchmark/home-robot/data`.
 - OVMM Python imports and runtime data roots are configured, but headless rendering is blocked by the current NVIDIA GL/EGL driver stack.
+- Rechecked on 2026-06-27: import preflight passes; bounded random-agent smoke reaches dataset and simulator initialization, then baseline fails at CUDA/EGL device mapping and the diagnostic 570.86.10 overlay fails at OpenGL version retrieval.
 - BEHAVIOR checkpoints were intentionally not synced.
 
 After rsyncing to root-owned remote workspaces:
@@ -305,6 +306,7 @@ Current A6000 OVMM render status:
 - Loaded NVIDIA kernel module is 570.86.10, but system `libnvidia-gl-570` / `libnvidia-compute-570` are 570.133.07.
 - A diagnostic 570.86.10 runtime overlay exists at `/root/workspace/tianshanzhang/runtime_libs/`.
 - With the overlay and `MAGNUM_GPU_VALIDATION=ON`, Magnum reports 4 EGL devices and maps CUDA device 0 to EGL device 0, then fails with `GL::Context: cannot retrieve OpenGL version`.
+- 2026-06-27 rerun confirms the same blocker: baseline smoke fails with `unable to find CUDA device 2 among 1 EGL devices in total`; overlay smoke fails with `GL::Context: cannot retrieve OpenGL version`.
 - `CUDA_VISIBLE_DEVICES=0`, `EGL_PLATFORM=surfaceless`, and `PYOPENGL_PLATFORM=egl` did not fix the final OpenGL context failure.
 - Do not continue random EGL flag iteration on this server unless the host-level NVIDIA kernel/user-space library mismatch is fixed.
 

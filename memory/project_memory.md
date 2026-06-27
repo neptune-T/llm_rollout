@@ -74,6 +74,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - A6000 has an NVIDIA driver/user-space mismatch: loaded kernel module is 570.86.10, while system `libnvidia-gl-570` and `libnvidia-compute-570` user-space libraries are 570.133.07.
 - A non-invasive NVIDIA 570.86.10 runtime overlay exists under `/root/workspace/tianshanzhang/runtime_libs/`; with Magnum validation it exposes 4 EGL devices and maps CUDA device 0 to EGL device 0, but Habitat-Sim still fails at OpenGL version retrieval.
 - A6000 OVMM Python environment and data roots are configured, but OVMM headless rendering is currently blocked by host/container NVIDIA GL/EGL stack consistency.
+- A6000 OVMM smoke rechecked on 2026-06-27: import preflight still passes, baseline random-agent smoke reaches dataset and simulator initialization, then fails at CUDA/EGL device mapping; diagnostic 570.86.10 overlay changes the failure to OpenGL version retrieval. No simulator step is reached.
 - A6000 `sana` env exists at `/root/anaconda3/envs/sana` with Python 3.11.6, CUDA toolkit 12.8, PyTorch 2.9.1+cu128, torchvision 0.24.1+cu128, torchaudio 2.9.1+cu128, xformers 0.0.33.post2, mmcv 1.7.2, editable Sana 0.2.0, Pi3 0.1, and flash-attn 2.8.3.post1.
 - A6000 `sana` core import preflight passes for `torch`, `torchvision`, `torchaudio`, `xformers`, `mmcv`, `sana`, `diffusers`, `transformers`, `accelerate`, `bitsandbytes`, `clip`, `peft`, `timm`, `hpsv2`, `open_clip`, `wandb`, `gradio`, `pi3`, `flash_attn`, and `flash_attn_2_cuda`.
 - A6000 `sana` still lacks `transformer-engine[pytorch]`; this only blocks NVFP4/FP4 Sol-RL paths, not core BF16/Sana imports.
@@ -105,7 +106,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - Sol-RL code has been located and partially read. It is a reference implementation for "cheap explore / high-precision verify or train" in diffusion models, not a required dependency stack. The project should borrow the rollout-scaling pattern, not the image-generation-specific NVFP4 implementation.
 - A6000 NVIDIA render server code migration is complete for the current non-checkpoint workspace snapshot.
 - A6000 `home-robot` env creation, import-only validation, OVMM data-root validation, editable local package registration, and `sophus` compatibility repair are complete.
-- A6000 OVMM rendering smoke reaches dataset and simulator initialization but is blocked at Habitat-Sim OpenGL context creation due to the current NVIDIA GL/EGL stack.
+- A6000 OVMM rendering smoke reaches dataset and simulator initialization but is blocked before simulator step due to the current NVIDIA GL/EGL stack. Baseline failure is CUDA/EGL device mapping; diagnostic overlay failure is OpenGL version retrieval.
 - A6000 `sana` non-render setup is now complete for the core Sana/Sol-RL import path: CUDA toolkit, PyTorch cu128, xformers, mmcv, editable Sana, Pi3, and flash-attn import validation pass. NVFP4/FP4 Sol-RL remains unavailable, but this is not a blocker for the active robotics route.
 - BEHAVIOR champion checkpoints are still not present on A6000.
 
@@ -118,7 +119,7 @@ The project is about long-horizon mobile manipulation (LMM), not generic languag
 - BEHAVIOR / Isaac Sim rollout should be tested on a machine with a supported NVIDIA RTX GPU and stable headless/offscreen rendering.
 - A6000 render server is suitable for the next remote rendering setup attempt: 4x RTX A6000 with driver 570.86.10, reachable by SSH, and code is located at `/root/workspace/tianshanzhang`.
 - A6000 currently has system Python 3.8.2, `/root/anaconda3` conda 4.8.3, and micromamba 2.5.0 at `/root/.local/bin/micromamba`.
-- A6000 `home-robot` env exists at `/root/micromamba/envs/home-robot`. Import-only preflight passes; rendering smoke is still pending.
+- A6000 `home-robot` env exists at `/root/micromamba/envs/home-robot`. Import-only preflight passes; bounded rendering smoke fails before simulator step due to EGL/OpenGL context creation.
 - A6000 OVMM data roots present: `data/datasets/ovmm`, `data/objects`, `data/hssd-hab`, and `data/robots/hab_stretch`.
 - A6000 `home_robot==0.1.0` and `home_robot_sim==0.1.0` are installed editable in the `home-robot` env with `--no-deps`.
 - A6000 requires `PYTHONPATH=/root/workspace/tianshanzhang/lmm_rollout_project/shims:$PYTHONPATH` for OVMM eval commands unless the shim is packaged later.
@@ -407,6 +408,12 @@ Recommended data transfer notes:
 - `exp_20260626_066`: First A6000 transformer-engine install attempt. Result: selected `transformer-engine 2.16.1`, no matching precompiled torch wheel, source build failed on missing `cudnn.h`; no package installed.
 - `exp_20260626_067`: A6000 transformer-engine retry with explicit CUDA/cuDNN paths. Result: reached wheel build stage but became unobservable with no compiler child process; interrupted and residual processes terminated; core Sana preflight still passed.
 - `exp_20260626_068`: Sync updated logs, memory, and skill docs to A6000 after transformer-engine attempts. Result: rsync completed.
+- `exp_20260627_001`: Direction clarification. Result: NVFP4/Transformer Engine is optional and not on the critical path; cheap rollout should be robotics-policy-specific.
+- `exp_20260627_002`: Sync updated project-control files to A6000 after direction clarification. Result: rsync completed.
+- `exp_20260627_003`: A6000 HomeRobot import preflight and GPU status recheck. Result: import preflight passed; all 4 A6000 GPUs were heavily occupied.
+- `exp_20260627_004`: A6000 bounded OVMM baseline random-agent smoke without overlay. Result: reached dataset/simulator init, failed with `unable to find CUDA device 2 among 1 EGL devices in total`.
+- `exp_20260627_005`: A6000 bounded OVMM random-agent smoke with 570.86.10 overlay. Result: reached dataset/simulator init, failed with `GL::Context: cannot retrieve OpenGL version`; no simulator step reached.
+- `exp_20260627_006`: Sync updated smoke-test logs, memory, and skill docs to A6000. Result: rsync completed.
 
 ## Key Results
 
@@ -421,6 +428,7 @@ Recommended data transfer notes:
 - Engineering result: A6000 rendering is blocked by NVIDIA GL/EGL context validity. The strongest evidence is Magnum reporting 4 EGL devices and a correct CUDA/EGL mapping under the 570.86.10 overlay, followed by `GL::Context: cannot retrieve OpenGL version`.
 - Engineering result: A6000 `sana` environment now passes core imports, Pi3 import validation, and flash-attn compiled-extension import validation.
 - Engineering result: A6000 `transformer-engine[pytorch]` is not installed. This blocks Sol-RL NVFP4/FP4 paths only; BF16/core Sana imports remain usable.
+- Engineering result: A6000 OVMM/HomeRobot Python imports and data roots are good, but bounded random-agent smoke still cannot reach a simulator step because Habitat-Sim cannot create a valid windowless rendering context.
 
 ## Failure Modes
 
@@ -448,6 +456,7 @@ Recommended data transfer notes:
   - Before `libegl1`: `no EGL devices found`.
   - After `libegl1`: `unable to find CUDA device X among 1 EGL devices in total`.
   - With 570.86.10 overlay: CUDA/EGL mapping succeeds under Magnum validation, then `GL::Context: cannot retrieve OpenGL version`.
+- On 2026-06-27 the same pattern persisted: baseline smoke failed with CUDA/EGL device mapping, and overlay smoke failed with OpenGL version retrieval.
 - A6000 NVIDIA mismatch: loaded kernel module 570.86.10 but system user-space libraries 570.133.07. Random EGL flags did not fix the final OpenGL context failure.
 - A6000 Pi3 direct VCS install hung during GitHub clone; residual remote `pip`/`git` processes were terminated.
 - A6000 Pi3 shallow clone fetched Git objects but checkout failed before completion, leaving an unusable working tree with `index.lock`.
@@ -471,7 +480,7 @@ Required evidence:
 
 ## Next Milestones
 
-1. Ask for or arrange host-level fix on the A6000 render server: align NVIDIA kernel module and user-space GL/EGL libraries, or reboot into the installed 570.133.07 stack, or use another NVIDIA render host.
+1. Ask for or arrange host-level fix on the A6000 render server: align NVIDIA kernel module and user-space GL/EGL libraries, reboot into a consistent NVIDIA stack, or use another NVIDIA render host.
 2. Continue non-render setup only if needed: resolve `transformer-engine[pytorch]` with a compatible wheel/torch strategy if NVFP4/FP4 Sol-RL paths are selected.
 3. Decide whether to transfer 48GB BEHAVIOR champion checkpoints to A6000 or download/copy them from a faster shared source.
 4. Build the standard rollout record schema on OVMM once a render host works.
