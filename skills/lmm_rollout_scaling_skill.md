@@ -147,6 +147,30 @@ Known local status:
 - OVMM episodes exist under `benchmark/home-robot/data/datasets/ovmm`.
 - Local Habitat-Sim currently fails at OpenGL/EGL context creation with `GL::Context: cannot retrieve OpenGL version`.
 
+A6000 OVMM smoke command:
+
+```bash
+cd /root/workspace/tianshanzhang
+GPU_ID=0 MAX_EPISODE_STEPS=1 NUM_EPISODES=1 bash lmm_rollout_project/scripts/env_check/ovmm_a6000_smoke.sh
+```
+
+This script is intentionally project-local. It does not modify CUDA, apt packages, or the host NVIDIA driver. It only:
+
+- creates missing `/dev/dri` device nodes inside the container when `/sys/class/drm` exposes them;
+- adds the `sophus` compatibility shim to `PYTHONPATH`;
+- preloads system GLVND libraries;
+- uses the project-local NVIDIA 570.86 runtime overlay;
+- launches the bounded OVMM random-agent smoke.
+
+Current A6000 rendering diagnosis:
+
+- The server is a Docker/container environment, not a full host.
+- Loaded NVIDIA kernel module is `570.86.10`.
+- System apt NVIDIA GL/compute user-space packages are `570.133.07`.
+- Creating `/dev/dri` nodes exposes EGL devices, but the system NVIDIA vendor JSON alone fails with no usable EGL devices.
+- Using the 570.86 overlay plus system GLVND preload reaches `Renderer: NVIDIA RTX A6000/PCIe/SSE2` and `OpenGL version: 4.6.0 NVIDIA 570.86.10`.
+- The current remaining OVMM smoke blocker is incomplete HSSD Git LFS payload files, not the Python package stack.
+
 Sol-RL local preflight, safe if it only imports already installed packages:
 
 ```bash
